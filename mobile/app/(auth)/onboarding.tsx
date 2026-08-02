@@ -1,19 +1,38 @@
 /**
- * Onboarding — 4 steps per PRD §4.1. Pure presentation; permissions themselves
- * are requested contextually later (consent-first, step 4 just explains that).
+ * Onboarding — 4-screen swipeable intro (PRD §4.1). Horizontal paged scroll with
+ * an animated dot indicator that tracks scroll position; last screen advances to
+ * login. Messaging: intro, daily-brief automation, proactive nudges, privacy/consent.
  */
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  Dimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Card } from "../../components/ui";
+import { AiOrb, GlassCard, GradientBackdrop } from "../../components/ui";
 
-const STEPS = [
+const { width } = Dimensions.get("window");
+
+type Slide = {
+  title: string;
+  body: string;
+  bullets?: string[];
+  icon?: "orb";
+};
+
+const SLIDES: Slide[] = [
   {
     title: "Your AI Assistant for Everyday Life.",
     body: "One companion that quietly keeps your day on track.",
-    bullets: [],
+    icon: "orb",
   },
   {
     title: "Everything, organized automatically",
@@ -38,62 +57,97 @@ const STEPS = [
   {
     title: "Permissions, on your terms",
     body: "Calendar, Email, Notifications, Location, Contacts — each is optional, asked for in context, and revocable any time.",
-    bullets: [],
   },
-] as const;
+];
 
 export default function OnboardingScreen() {
-  const [step, setStep] = useState(0);
-  const current = STEPS[step];
-  const last = step === STEPS.length - 1;
+  const [index, setIndex] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const last = index === SLIDES.length - 1;
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const i = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (i !== index) setIndex(i);
+  };
+
+  const next = () => {
+    if (last) {
+      router.replace("/login");
+    } else {
+      scrollRef.current?.scrollTo({ x: (index + 1) * width, animated: true });
+    }
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-bg">
-      <View className="flex-1 justify-between px-6 py-8">
-        <View className="flex-row justify-center gap-2">
-          {STEPS.map((_, i) => (
-            <View
-              key={i}
-              className={`h-1.5 rounded-chip ${i === step ? "w-6 bg-primary" : "w-1.5 bg-text-dim/30"}`}
-            />
+    <GradientBackdrop>
+      <SafeAreaView className="flex-1">
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        >
+          {SLIDES.map((s) => (
+            <View key={s.title} style={{ width }} className="flex-1 justify-center px-6">
+              {s.icon === "orb" && (
+                <View className="mb-8 items-center">
+                  <AiOrb size={96} />
+                </View>
+              )}
+              <Text className="text-display text-text">{s.title}</Text>
+              <Text className="mt-2 text-body text-text-dim">{s.body}</Text>
+              {s.bullets && (
+                <GlassCard className="mt-5">
+                  <View className="gap-2">
+                    {s.bullets.map((b) => (
+                      <Text key={b} className="text-body text-text">
+                        • {b}
+                      </Text>
+                    ))}
+                  </View>
+                </GlassCard>
+              )}
+            </View>
           ))}
-        </View>
+        </ScrollView>
 
-        <View className="gap-4">
-          <Text className="text-display text-text">{current.title}</Text>
-          <Text className="text-body text-text-dim">{current.body}</Text>
-          {current.bullets.length > 0 && (
-            <Card className="gap-2">
-              {current.bullets.map((b) => (
-                <Text key={b} className="text-body text-text">
-                  • {b}
-                </Text>
-              ))}
-            </Card>
-          )}
-        </View>
-
-        <View className="gap-3">
+        <View className="px-6 pb-6">
+          <View className="mb-5 flex-row justify-center gap-2">
+            {SLIDES.map((_, i) => (
+              <View
+                key={i}
+                className={`h-1.5 rounded-chip ${i === index ? "w-6 bg-primary" : "w-1.5 bg-text-dim/30"}`}
+              />
+            ))}
+          </View>
           <Pressable
             accessibilityRole="button"
-            onPress={() => (last ? router.replace("/login") : setStep(step + 1))}
-            className="items-center rounded-card bg-primary py-4 active:opacity-80"
+            onPress={next}
+            className="overflow-hidden rounded-card"
           >
-            <Text className="text-body font-semibold text-white">
-              {last ? "Get started" : "Continue"}
-            </Text>
+            <LinearGradient
+              colors={["#4F46E5", "#7C3AED"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text className="py-4 text-center text-body font-semibold text-white">
+                {last ? "Get started" : "Continue"}
+              </Text>
+            </LinearGradient>
           </Pressable>
           {!last && (
             <Pressable
               accessibilityRole="button"
               onPress={() => router.replace("/login")}
-              className="items-center py-2"
+              className="items-center py-3"
             >
               <Text className="text-body text-text-dim">Skip</Text>
             </Pressable>
           )}
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </GradientBackdrop>
   );
 }
