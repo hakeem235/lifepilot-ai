@@ -1,9 +1,12 @@
 node_modules/
 .env
 .env.*
+!.env.example
 .DS_Store
 *.log
 .expo/
 dist/
 __pycache__/
 *.pyc
+.venv/
+staticfiles/

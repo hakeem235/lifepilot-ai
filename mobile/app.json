@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "LifePilot AI",
+    "slug": "lifepilot-ai",
+    "scheme": "lifepilot",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lifepilot.ai"
+    },
+    "android": {
+      "package": "com.lifepilot.ai",
+      "adaptiveIcon": {
+        "backgroundColor": "#4F46E5",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
