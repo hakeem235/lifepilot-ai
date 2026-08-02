@@ -16,12 +16,8 @@ export default function HomeScreen() {
           <Text className="text-caption font-semibold uppercase text-white/70">
             AI Summary · preview
           </Text>
-          <Text className="mt-2 text-title text-white">
-            Your day at a glance will appear here.
-          </Text>
-          <Text className="mt-1 text-body text-white/80">
-            Wired to real tasks in Issue 8.3.
-          </Text>
+          <Text className="mt-2 text-title text-white">Your day at a glance will appear here.</Text>
+          <Text className="mt-1 text-body text-white/80">Wired to real tasks in Issue 8.3.</Text>
         </Card>
         <View className="flex-row flex-wrap gap-2">
           <Chip label="Add Task" />
