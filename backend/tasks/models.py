@@ -30,6 +30,10 @@ class Task(models.Model):
     title = models.CharField(max_length=255)
     notes = models.TextField(blank=True)
     due_date = models.DateField(null=True, blank=True)  # drives Today/Upcoming
+    # Planner scheduling (Phase 9, D9): where a task sits on the daily timeline.
+    # scheduled_date null == "unscheduled" (lives in the tray, not on a slot).
+    scheduled_date = models.DateField(null=True, blank=True)
+    scheduled_time = models.TimeField(null=True, blank=True)
     priority = models.CharField(max_length=6, choices=Priority.choices, default=Priority.MEDIUM)
     status = models.CharField(max_length=4, choices=Status.choices, default=Status.OPEN)
     progress = models.PositiveSmallIntegerField(default=0)  # 0–100

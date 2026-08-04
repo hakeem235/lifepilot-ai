@@ -20,8 +20,19 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Task.objects.filter(user=self.request.user)
-        segment = self.request.query_params.get("segment")
+        params = self.request.query_params
         today = timezone.localdate()
+
+        # Planner (Phase 9): the unscheduled tray and a given day's timeline.
+        if params.get("unscheduled") == "true":
+            return qs.filter(status=Task.Status.OPEN, scheduled_date__isnull=True)
+        scheduled_date = params.get("scheduled_date")
+        if scheduled_date:
+            return qs.filter(scheduled_date=scheduled_date).order_by(
+                "scheduled_time", "-created_at"
+            )
+
+        segment = params.get("segment")
         if segment == "today":
             return qs.filter(status=Task.Status.OPEN, due_date__lte=today)
         if segment == "upcoming":

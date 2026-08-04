@@ -11,6 +11,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "title",
             "notes",
             "due_date",
+            "scheduled_date",
+            "scheduled_time",
             "priority",
             "status",
             "progress",

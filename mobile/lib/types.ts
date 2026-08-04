@@ -6,6 +6,8 @@ export interface Task {
   title: string;
   notes: string;
   due_date: string | null;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
   priority: Priority;
   status: TaskStatus;
   progress: number;
