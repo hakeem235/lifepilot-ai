@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useApi } from "./api";
+import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 
 import { getPushToken, pushPlatform } from "./notifications";
@@ -199,7 +200,18 @@ export function useCalendar(dateISO: string) {
     const res = await api("/api/gcal/auth-url/");
     if (!res.ok) return false;
     const { url } = await res.json();
-    await WebBrowser.openAuthSessionAsync(url, "lifepilot://planner");
+    const result = await WebBrowser.openAuthSessionAsync(url, "lifepilot://planner");
+    // The server callback hands back a one-time claim only to this device; finalize
+    // with our authenticated identity so the tokens bind to us (not to `state`).
+    if (result.type === "success" && result.url) {
+      const claim = Linking.parse(result.url).queryParams?.gcal_claim;
+      if (typeof claim === "string") {
+        await api("/api/gcal/finalize/", {
+          method: "POST",
+          body: JSON.stringify({ claim }),
+        });
+      }
+    }
     await refresh();
     return true;
   }, [api, refresh]);
