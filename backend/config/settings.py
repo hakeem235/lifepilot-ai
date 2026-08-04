@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "assistant",
     "insights",
     "routines",
+    "gcal",
 ]
 
 MIDDLEWARE = [
@@ -177,3 +178,10 @@ CLERK_ISSUER = os.environ.get("CLERK_ISSUER", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL_CHAT = os.environ.get("ANTHROPIC_MODEL_CHAT", "claude-opus-4-8")
 ANTHROPIC_MODEL_SUMMARY = os.environ.get("ANTHROPIC_MODEL_SUMMARY", "claude-haiku-4-5-20251001")
+# Google Calendar (read-only overlay) — server-side OAuth, wired in Issue 9.3.
+# Unset by default: the API degrades gracefully to connected:false with no creds.
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
+GOOGLE_OAUTH_REDIRECT_URI = os.environ.get(
+    "GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/api/gcal/callback/"
+)

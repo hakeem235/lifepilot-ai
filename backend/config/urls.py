@@ -11,4 +11,5 @@ urlpatterns = [
     path("api/", include("assistant.urls")),
     path("api/", include("insights.urls")),
     path("api/", include("routines.urls")),
+    path("api/", include("gcal.urls")),
 ]

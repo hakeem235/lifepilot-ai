@@ -27,7 +27,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
-import { usePlanner, useTasks } from "../../lib/hooks";
+import { useCalendar, usePlanner, useTasks } from "../../lib/hooks";
 import type { Priority, Task } from "../../lib/types";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM … 9 PM
@@ -105,7 +105,11 @@ export default function PlannerScreen() {
   const dateISO = todayISO();
   const { scheduled, unscheduled, loading, schedule, refresh } = usePlanner(dateISO);
   const { tasks: allTasks } = useTasks();
+  const { day: calendar, connect } = useCalendar(dateISO);
   const templatesRef = useRef<BottomSheet>(null);
+
+  const eventsAt = (hour: number) =>
+    calendar.events.filter((e) => e.start && new Date(e.start).getHours() === hour);
 
   // Ghost overlay shared values — the single element that follows the finger.
   const ghostX = useSharedValue(0);
@@ -227,6 +231,30 @@ export default function PlannerScreen() {
             <PriorityMatrix tasks={allTasks} />
           </View>
 
+          {/* Google Calendar overlay: connect prompt, or all-day banner */}
+          {!calendar.connected ? (
+            <Pressable
+              onPress={connect}
+              className="mb-4 flex-row items-center justify-between rounded-card border border-border/20 bg-card p-3 active:opacity-80"
+            >
+              <Text className="text-caption text-text-dim">📅 Overlay your Google Calendar</Text>
+              <Text className="text-caption font-semibold text-primary">Connect</Text>
+            </Pressable>
+          ) : (
+            calendar.all_day.length > 0 && (
+              <View className="mb-4 rounded-card border border-primary/30 bg-primary/5 p-3">
+                <Text className="mb-1 text-caption font-semibold uppercase text-primary">
+                  All day
+                </Text>
+                {calendar.all_day.map((e) => (
+                  <Text key={e.id} className="text-caption text-text" numberOfLines={1}>
+                    📅 {e.title}
+                  </Text>
+                ))}
+              </View>
+            )
+          )}
+
           <View ref={timelineRef} collapsable={false}>
             {HOURS.map((h) => (
               <View
@@ -236,6 +264,16 @@ export default function PlannerScreen() {
               >
                 <Text className="w-16 pt-1 text-caption text-text-dim">{hourLabel(h)}</Text>
                 <View className="flex-1 gap-1 py-1">
+                  {eventsAt(h).map((e) => (
+                    <View
+                      key={e.id}
+                      className="rounded-chip border-l-2 border-primary bg-primary/5 px-3 py-2"
+                    >
+                      <Text className="text-caption text-text" numberOfLines={1}>
+                        📅 {e.title}
+                      </Text>
+                    </View>
+                  ))}
                   {bySlot(h).map((t) => (
                     <DraggableChip key={t.id} task={t} ctx={ctx} />
                   ))}

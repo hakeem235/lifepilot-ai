@@ -32,6 +32,21 @@ export interface TaskTemplate {
   is_preset: boolean;
 }
 
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  all_day: boolean;
+  start: string | null;
+  end: string | null;
+}
+
+export interface CalendarDay {
+  connected: boolean;
+  events: CalendarEvent[];
+  all_day: CalendarEvent[];
+  error?: string;
+}
+
 export interface Brief {
   summary: string;
   generated_by: "ai" | "fallback";

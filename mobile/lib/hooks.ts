@@ -6,8 +6,11 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useApi } from "./api";
+import * as WebBrowser from "expo-web-browser";
+
 import type {
   Brief,
+  CalendarDay,
   ChatMessage,
   Insights,
   Priority,
@@ -161,6 +164,45 @@ export function useTemplates() {
   );
 
   return { templates, loading, apply };
+}
+
+/**
+ * Google Calendar read-only overlay (Issue 9.3). Fetches a day's events; when
+ * not connected, `connect()` opens the server-issued consent URL in a browser
+ * (server-side OAuth — no client-side calendar credentials) and refreshes on
+ * return. Degrades cleanly: with no server config, `connected` stays false.
+ */
+export function useCalendar(dateISO: string) {
+  const api = useApi();
+  const [day, setDay] = useState<CalendarDay>({
+    connected: false,
+    events: [],
+    all_day: [],
+  });
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api(`/api/gcal/events/?date=${dateISO}`);
+      if (res.ok) setDay(await res.json());
+    } catch {
+      // Leave the last-known (or empty) state; the overlay is non-critical.
+    }
+  }, [api, dateISO]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const connect = useCallback(async (): Promise<boolean> => {
+    const res = await api("/api/gcal/auth-url/");
+    if (!res.ok) return false;
+    const { url } = await res.json();
+    await WebBrowser.openAuthSessionAsync(url, "lifepilot://planner");
+    await refresh();
+    return true;
+  }, [api, refresh]);
+
+  return { day, refresh, connect };
 }
 
 export function useBrief() {
