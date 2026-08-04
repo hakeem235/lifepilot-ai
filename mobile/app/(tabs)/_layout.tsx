@@ -61,6 +61,13 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="planner"
+          options={{
+            title: "Planner",
+            tabBarIcon: ({ color }) => <TabIcon glyph="◷" color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="chat"
           options={{
             title: "AI Chat",

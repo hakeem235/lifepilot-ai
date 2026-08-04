@@ -58,6 +58,66 @@ export function useTasks(segment?: Segment) {
   return { tasks, loading, error, refresh, addTask, toggleComplete };
 }
 
+/**
+ * Planner data for a single day: the timeline (tasks scheduled on `dateISO`) plus
+ * the unscheduled tray. `schedule` PATCHes a task's scheduled_date/time — pass
+ * nulls to send it back to the tray — then refetches both lists so the drop
+ * persists and survives reload (the 9.0 acceptance path).
+ */
+export function usePlanner(dateISO: string) {
+  const api = useApi();
+  const [scheduled, setScheduled] = useState<Task[]>([]);
+  const [unscheduled, setUnscheduled] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [dayRes, trayRes] = await Promise.all([
+        api(`/api/tasks/?scheduled_date=${dateISO}`),
+        api(`/api/tasks/?unscheduled=true`),
+      ]);
+      if (dayRes.ok) setScheduled(await dayRes.json());
+      if (trayRes.ok) setUnscheduled(await trayRes.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [api, dateISO]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const schedule = useCallback(
+    async (id: string, date: string | null, time: string | null) => {
+      // Optimistic move so the chip lands under the finger instantly; refresh reconciles.
+      const apply = (t: Task): Task => ({ ...t, scheduled_date: date, scheduled_time: time });
+      setScheduled((prev) => {
+        const found = prev.find((t) => t.id === id);
+        const rest = prev.filter((t) => t.id !== id);
+        const fromTray = unscheduled.find((t) => t.id === id);
+        const moved = found ?? fromTray;
+        return date ? [...rest, ...(moved ? [apply(moved)] : [])] : rest;
+      });
+      setUnscheduled((prev) => {
+        const found = prev.find((t) => t.id === id);
+        const rest = prev.filter((t) => t.id !== id);
+        const fromDay = scheduled.find((t) => t.id === id);
+        const moved = found ?? fromDay;
+        return date ? rest : [...rest, ...(moved ? [apply(moved)] : [])];
+      });
+      await api(`/api/tasks/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ scheduled_date: date, scheduled_time: time }),
+      });
+      await refresh();
+    },
+    [api, refresh, scheduled, unscheduled],
+  );
+
+  return { scheduled, unscheduled, loading, refresh, schedule };
+}
+
 export function useBrief() {
   const api = useApi();
   const [brief, setBrief] = useState<Brief | null>(null);
