@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "tasks",
     "assistant",
     "insights",
+    "routines",
 ]
 
 MIDDLEWARE = [

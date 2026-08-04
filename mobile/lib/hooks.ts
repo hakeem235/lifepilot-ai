@@ -6,7 +6,14 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useApi } from "./api";
-import type { Brief, ChatMessage, Insights, Priority, Task } from "./types";
+import type {
+  Brief,
+  ChatMessage,
+  Insights,
+  Priority,
+  Task,
+  TaskTemplate,
+} from "./types";
 
 type Segment = "today" | "upcoming" | "completed";
 
@@ -116,6 +123,44 @@ export function usePlanner(dateISO: string) {
   );
 
   return { scheduled, unscheduled, loading, refresh, schedule };
+}
+
+/**
+ * Task templates / routines (Issue 9.1): lists system presets + the user's own
+ * templates, and applies one onto a chosen day (creates the tasks server-side).
+ */
+export function useTemplates() {
+  const api = useApi();
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api("/api/templates/");
+        if (alive && res.ok) setTemplates(await res.json());
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [api]);
+
+  const apply = useCallback(
+    async (id: string, dateISO: string): Promise<boolean> => {
+      const res = await api(`/api/templates/${id}/apply/`, {
+        method: "POST",
+        body: JSON.stringify({ date: dateISO }),
+      });
+      return res.ok;
+    },
+    [api],
+  );
+
+  return { templates, loading, apply };
 }
 
 export function useBrief() {

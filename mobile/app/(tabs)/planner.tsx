@@ -11,8 +11,9 @@
  * chip is drawn as a single absolute "ghost" overlay at the screen root so it is
  * never clipped while crossing between the tray and timeline scroll containers.
  */
+import type BottomSheet from "@gorhom/bottom-sheet";
 import { useCallback, useRef, useState } from "react";
-import { ScrollView, Text, View, type View as RNView } from "react-native";
+import { Pressable, ScrollView, Text, View, type View as RNView } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -23,6 +24,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
 import { usePlanner } from "../../lib/hooks";
 import type { Priority, Task } from "../../lib/types";
@@ -100,7 +102,8 @@ function DraggableChip({ task, ctx }: { task: Task; ctx: DragCtx }) {
 
 export default function PlannerScreen() {
   const dateISO = todayISO();
-  const { scheduled, unscheduled, loading, schedule } = usePlanner(dateISO);
+  const { scheduled, unscheduled, loading, schedule, refresh } = usePlanner(dateISO);
+  const templatesRef = useRef<BottomSheet>(null);
 
   // Ghost overlay shared values — the single element that follows the finger.
   const ghostX = useSharedValue(0);
@@ -169,15 +172,23 @@ export default function PlannerScreen() {
   return (
     <GradientBackdrop>
       <SafeAreaView edges={["top"]} className="flex-1">
-        <View className="px-5 pt-2">
-          <Text className="text-display text-text">Planner</Text>
-          <Text className="mt-1 text-body text-text-dim">
-            {new Date(dateISO).toLocaleDateString(undefined, {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </Text>
+        <View className="flex-row items-start justify-between px-5 pt-2">
+          <View>
+            <Text className="text-display text-text">Planner</Text>
+            <Text className="mt-1 text-body text-text-dim">
+              {new Date(dateISO).toLocaleDateString(undefined, {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => templatesRef.current?.expand()}
+            className="mt-1 flex-row items-center gap-1 rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
+          >
+            <Text className="text-caption font-semibold text-primary">＋ Routines</Text>
+          </Pressable>
         </View>
 
         {/* Unscheduled tray */}
@@ -239,6 +250,8 @@ export default function PlannerScreen() {
           <ChipVisual task={dragTask} />
         </Animated.View>
       )}
+
+      <TemplatesSheet ref={templatesRef} dateISO={dateISO} onApplied={refresh} />
     </GradientBackdrop>
   );
 }
