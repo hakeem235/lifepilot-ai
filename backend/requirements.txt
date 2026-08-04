@@ -8,6 +8,10 @@ whitenoise==6.11.0
 dj-database-url==3.0.1
 python-dotenv==1.2.2
 sqlparse==0.5.5
+# Clerk JWT verification — RS256 via public JWKS (Issue 8.1); versions mirror
+# ComplianceAI's pinned set.
+PyJWT==2.13.0
+cryptography==49.0.0
 # Anthropic Claude SDK — wired in Issue 8.3 (server-side proxy only); pinned now so
 # the dependency set is stable from scaffold. Not imported until 8.3.
 anthropic==0.111.0

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "core",
+    "users",
 ]
 
 MIDDLEWARE = [
@@ -145,6 +146,14 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 REST_FRAMEWORK = {
+    # Clerk JWT (RS256 via JWKS) is the only auth scheme; endpoints are
+    # authenticated by default — public routes opt out explicitly (health).
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "users.authentication.ClerkJWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.AnonRateThrottle",
