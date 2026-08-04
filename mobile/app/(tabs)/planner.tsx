@@ -11,8 +11,9 @@
  * chip is drawn as a single absolute "ghost" overlay at the screen root so it is
  * never clipped while crossing between the tray and timeline scroll containers.
  */
+import type BottomSheet from "@gorhom/bottom-sheet";
 import { useCallback, useRef, useState } from "react";
-import { ScrollView, Text, View, type View as RNView } from "react-native";
+import { Pressable, ScrollView, Text, View, type View as RNView } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   measure,
@@ -25,16 +26,16 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { NotificationsSheet } from "../../components/NotificationsSheet";
+import { PriorityMatrix } from "../../components/PriorityMatrix";
+import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
-import { usePlanner } from "../../lib/hooks";
+import { shiftISODate, todayISO } from "../../lib/date";
+import { useCalendar, useNotifications, usePlanner, useTasks } from "../../lib/hooks";
 import type { Priority, Task } from "../../lib/types";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM … 9 PM
 const SLOT_H = 64;
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function hourLabel(h: number): string {
   const ampm = h < 12 ? "AM" : "PM";
@@ -113,8 +114,17 @@ function DraggableChip({ task, ctx }: { task: Task; ctx: DragCtx }) {
 }
 
 export default function PlannerScreen() {
-  const dateISO = todayISO();
-  const { scheduled, unscheduled, loading, schedule } = usePlanner(dateISO);
+  const [dateISO, setDateISO] = useState(todayISO());
+  const isToday = dateISO === todayISO();
+  const { scheduled, unscheduled, loading, schedule, refresh } = usePlanner(dateISO);
+  const { tasks: allTasks } = useTasks();
+  const { day: calendar, connect } = useCalendar(dateISO);
+  const { notifications, unread, markRead, markAllRead } = useNotifications();
+  const templatesRef = useRef<BottomSheet>(null);
+  const notificationsRef = useRef<BottomSheet>(null);
+
+  const eventsAt = (hour: number) =>
+    calendar.events.filter((e) => e.start && new Date(e.start).getHours() === hour);
 
   // Ghost overlay shared values — the single element that follows the finger.
   const ghostX = useSharedValue(0);
@@ -182,15 +192,66 @@ export default function PlannerScreen() {
   return (
     <GradientBackdrop>
       <SafeAreaView edges={["top"]} className="flex-1">
-        <View className="px-5 pt-2">
-          <Text className="text-display text-text">Planner</Text>
-          <Text className="mt-1 text-body text-text-dim">
-            {new Date(dateISO).toLocaleDateString(undefined, {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </Text>
+        <View className="flex-row items-start justify-between px-5 pt-2">
+          <View>
+            <Text className="text-display text-text">Planner</Text>
+            <View className="mt-1 flex-row items-center gap-2">
+              <Pressable
+                onPress={() => setDateISO((d) => shiftISODate(d, -1))}
+                accessibilityLabel="Previous day"
+                className="px-1 active:opacity-60"
+              >
+                <Text className="text-body text-text-dim">‹</Text>
+              </Pressable>
+              <Text className="text-body text-text-dim">
+                {new Date(dateISO).toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </Text>
+              <Pressable
+                onPress={() => setDateISO((d) => shiftISODate(d, 1))}
+                accessibilityLabel="Next day"
+                className="px-1 active:opacity-60"
+              >
+                <Text className="text-body text-text-dim">›</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDateISO(todayISO())}
+                accessibilityLabel="Jump to today"
+                className={`rounded-chip px-2 py-0.5 active:opacity-80 ${
+                  isToday ? "bg-primary" : "bg-primary/10"
+                }`}
+              >
+                <Text
+                  className={`text-caption font-semibold ${isToday ? "text-white" : "text-primary"}`}
+                >
+                  Today
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+          <View className="mt-1 flex-row items-center gap-2">
+            <Pressable
+              onPress={() => notificationsRef.current?.expand()}
+              accessibilityLabel="Notifications"
+              className="relative rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
+            >
+              <Text className="text-caption font-semibold text-primary">🔔</Text>
+              {unread > 0 && (
+                <View className="absolute -right-1 -top-1 h-4 min-w-[16px] items-center justify-center rounded-full bg-danger px-1">
+                  <Text className="text-[10px] font-bold text-white">{unread}</Text>
+                </View>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => templatesRef.current?.expand()}
+              className="flex-row items-center gap-1 rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
+            >
+              <Text className="text-caption font-semibold text-primary">＋ Routines</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Unscheduled tray */}
@@ -223,6 +284,34 @@ export default function PlannerScreen() {
           contentContainerClassName="px-5 pb-28"
           showsVerticalScrollIndicator={false}
         >
+          <View className="mb-4">
+            <PriorityMatrix tasks={allTasks} />
+          </View>
+
+          {/* Google Calendar overlay: connect prompt, or all-day banner */}
+          {!calendar.connected ? (
+            <Pressable
+              onPress={connect}
+              className="mb-4 flex-row items-center justify-between rounded-card border border-border/20 bg-card p-3 active:opacity-80"
+            >
+              <Text className="text-caption text-text-dim">📅 Overlay your Google Calendar</Text>
+              <Text className="text-caption font-semibold text-primary">Connect</Text>
+            </Pressable>
+          ) : (
+            calendar.all_day.length > 0 && (
+              <View className="mb-4 rounded-card border border-primary/30 bg-primary/5 p-3">
+                <Text className="mb-1 text-caption font-semibold uppercase text-primary">
+                  All day
+                </Text>
+                {calendar.all_day.map((e) => (
+                  <Text key={e.id} className="text-caption text-text" numberOfLines={1}>
+                    📅 {e.title}
+                  </Text>
+                ))}
+              </View>
+            )
+          )}
+
           <View ref={timelineRef} collapsable={false}>
             {HOURS.map((h) => (
               <View
@@ -232,6 +321,16 @@ export default function PlannerScreen() {
               >
                 <Text className="w-16 pt-1 text-caption text-text-dim">{hourLabel(h)}</Text>
                 <View className="flex-1 gap-1 py-1">
+                  {eventsAt(h).map((e) => (
+                    <View
+                      key={e.id}
+                      className="rounded-chip border-l-2 border-primary bg-primary/5 px-3 py-2"
+                    >
+                      <Text className="text-caption text-text" numberOfLines={1}>
+                        📅 {e.title}
+                      </Text>
+                    </View>
+                  ))}
                   {bySlot(h).map((t) => (
                     <DraggableChip key={t.id} task={t} ctx={ctx} />
                   ))}
@@ -252,6 +351,14 @@ export default function PlannerScreen() {
           <ChipVisual task={dragTask} />
         </Animated.View>
       )}
+
+      <TemplatesSheet ref={templatesRef} dateISO={dateISO} onApplied={refresh} />
+      <NotificationsSheet
+        ref={notificationsRef}
+        notifications={notifications}
+        onMarkRead={markRead}
+        onMarkAllRead={markAllRead}
+      />
     </GradientBackdrop>
   );
 }

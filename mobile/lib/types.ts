@@ -16,6 +16,47 @@ export interface Task {
   completed_at: string | null;
 }
 
+export interface TemplateItem {
+  id: string;
+  title: string;
+  priority: Priority;
+  order: number;
+  time_offset_minutes: number;
+}
+
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  items: TemplateItem[];
+  is_preset: boolean;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  all_day: boolean;
+  start: string | null;
+  end: string | null;
+}
+
+export interface CalendarDay {
+  connected: boolean;
+  events: CalendarEvent[];
+  all_day: CalendarEvent[];
+  error?: string;
+}
+
+export interface AppNotification {
+  id: string;
+  kind: "task_start" | "deadline";
+  title: string;
+  body: string;
+  task: string | null;
+  created_at: string;
+  read: boolean;
+}
+
 export interface Brief {
   summary: string;
   generated_by: "ai" | "fallback";

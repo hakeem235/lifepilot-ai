@@ -10,4 +10,7 @@ urlpatterns = [
     path("api/", include("tasks.urls")),
     path("api/", include("assistant.urls")),
     path("api/", include("insights.urls")),
+    path("api/", include("routines.urls")),
+    path("api/", include("gcal.urls")),
+    path("api/", include("notifications.urls")),
 ]

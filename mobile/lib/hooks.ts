@@ -6,7 +6,20 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useApi } from "./api";
-import type { Brief, ChatMessage, Insights, Priority, Task } from "./types";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+
+import { getPushToken, pushPlatform } from "./notifications";
+import type {
+  AppNotification,
+  Brief,
+  CalendarDay,
+  ChatMessage,
+  Insights,
+  Priority,
+  Task,
+  TaskTemplate,
+} from "./types";
 
 type Segment = "today" | "upcoming" | "completed";
 
@@ -116,6 +129,149 @@ export function usePlanner(dateISO: string) {
   );
 
   return { scheduled, unscheduled, loading, refresh, schedule };
+}
+
+/**
+ * Task templates / routines (Issue 9.1): lists system presets + the user's own
+ * templates, and applies one onto a chosen day (creates the tasks server-side).
+ */
+export function useTemplates() {
+  const api = useApi();
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api("/api/templates/");
+        if (alive && res.ok) setTemplates(await res.json());
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [api]);
+
+  const apply = useCallback(
+    async (id: string, dateISO: string): Promise<boolean> => {
+      const res = await api(`/api/templates/${id}/apply/`, {
+        method: "POST",
+        body: JSON.stringify({ date: dateISO }),
+      });
+      return res.ok;
+    },
+    [api],
+  );
+
+  return { templates, loading, apply };
+}
+
+/**
+ * Google Calendar read-only overlay (Issue 9.3). Fetches a day's events; when
+ * not connected, `connect()` opens the server-issued consent URL in a browser
+ * (server-side OAuth — no client-side calendar credentials) and refreshes on
+ * return. Degrades cleanly: with no server config, `connected` stays false.
+ */
+export function useCalendar(dateISO: string) {
+  const api = useApi();
+  const [day, setDay] = useState<CalendarDay>({
+    connected: false,
+    events: [],
+    all_day: [],
+  });
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api(`/api/gcal/events/?date=${dateISO}`);
+      if (res.ok) setDay(await res.json());
+    } catch {
+      // Leave the last-known (or empty) state; the overlay is non-critical.
+    }
+  }, [api, dateISO]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const connect = useCallback(async (): Promise<boolean> => {
+    const res = await api("/api/gcal/auth-url/");
+    if (!res.ok) return false;
+    const { url } = await res.json();
+    const result = await WebBrowser.openAuthSessionAsync(url, "lifepilot://planner");
+    // The server callback hands back a one-time claim only to this device; finalize
+    // with our authenticated identity so the tokens bind to us (not to `state`).
+    if (result.type === "success" && result.url) {
+      const claim = Linking.parse(result.url).queryParams?.gcal_claim;
+      if (typeof claim === "string") {
+        await api("/api/gcal/finalize/", {
+          method: "POST",
+          body: JSON.stringify({ claim }),
+        });
+      }
+    }
+    await refresh();
+    return true;
+  }, [api, refresh]);
+
+  return { day, refresh, connect };
+}
+
+/**
+ * Notifications (Issue 9.4): registers this device's Expo push token on mount,
+ * then exposes the in-app center (list + unread count) with mark-read helpers.
+ */
+export function useNotifications() {
+  const api = useApi();
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unread, setUnread] = useState(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api("/api/notifications/");
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications);
+        setUnread(data.unread);
+      }
+    } catch {
+      // non-critical surface
+    }
+  }, [api]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const token = await getPushToken();
+      if (token && alive) {
+        await api("/api/notifications/register/", {
+          method: "POST",
+          body: JSON.stringify({ token, platform: pushPlatform }),
+        });
+      }
+      if (alive) await refresh();
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [api, refresh]);
+
+  const markRead = useCallback(
+    async (id: string) => {
+      await api(`/api/notifications/${id}/read/`, { method: "POST" });
+      await refresh();
+    },
+    [api, refresh],
+  );
+
+  const markAllRead = useCallback(async () => {
+    await api("/api/notifications/read-all/", { method: "POST" });
+    await refresh();
+  }, [api, refresh]);
+
+  return { notifications, unread, refresh, markRead, markAllRead };
 }
 
 export function useBrief() {
