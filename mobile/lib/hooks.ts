@@ -8,7 +8,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useApi } from "./api";
 import * as WebBrowser from "expo-web-browser";
 
+import { getPushToken, pushPlatform } from "./notifications";
 import type {
+  AppNotification,
   Brief,
   CalendarDay,
   ChatMessage,
@@ -203,6 +205,61 @@ export function useCalendar(dateISO: string) {
   }, [api, refresh]);
 
   return { day, refresh, connect };
+}
+
+/**
+ * Notifications (Issue 9.4): registers this device's Expo push token on mount,
+ * then exposes the in-app center (list + unread count) with mark-read helpers.
+ */
+export function useNotifications() {
+  const api = useApi();
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unread, setUnread] = useState(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api("/api/notifications/");
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications);
+        setUnread(data.unread);
+      }
+    } catch {
+      // non-critical surface
+    }
+  }, [api]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const token = await getPushToken();
+      if (token && alive) {
+        await api("/api/notifications/register/", {
+          method: "POST",
+          body: JSON.stringify({ token, platform: pushPlatform }),
+        });
+      }
+      if (alive) await refresh();
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [api, refresh]);
+
+  const markRead = useCallback(
+    async (id: string) => {
+      await api(`/api/notifications/${id}/read/`, { method: "POST" });
+      await refresh();
+    },
+    [api, refresh],
+  );
+
+  const markAllRead = useCallback(async () => {
+    await api("/api/notifications/read-all/", { method: "POST" });
+    await refresh();
+  }, [api, refresh]);
+
+  return { notifications, unread, refresh, markRead, markAllRead };
 }
 
 export function useBrief() {

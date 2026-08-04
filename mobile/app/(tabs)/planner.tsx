@@ -24,10 +24,11 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { NotificationsSheet } from "../../components/NotificationsSheet";
 import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
-import { useCalendar, usePlanner, useTasks } from "../../lib/hooks";
+import { useCalendar, useNotifications, usePlanner, useTasks } from "../../lib/hooks";
 import type { Priority, Task } from "../../lib/types";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM … 9 PM
@@ -106,7 +107,9 @@ export default function PlannerScreen() {
   const { scheduled, unscheduled, loading, schedule, refresh } = usePlanner(dateISO);
   const { tasks: allTasks } = useTasks();
   const { day: calendar, connect } = useCalendar(dateISO);
+  const { notifications, unread, markRead, markAllRead } = useNotifications();
   const templatesRef = useRef<BottomSheet>(null);
+  const notificationsRef = useRef<BottomSheet>(null);
 
   const eventsAt = (hour: number) =>
     calendar.events.filter((e) => e.start && new Date(e.start).getHours() === hour);
@@ -189,12 +192,26 @@ export default function PlannerScreen() {
               })}
             </Text>
           </View>
-          <Pressable
-            onPress={() => templatesRef.current?.expand()}
-            className="mt-1 flex-row items-center gap-1 rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
-          >
-            <Text className="text-caption font-semibold text-primary">＋ Routines</Text>
-          </Pressable>
+          <View className="mt-1 flex-row items-center gap-2">
+            <Pressable
+              onPress={() => notificationsRef.current?.expand()}
+              accessibilityLabel="Notifications"
+              className="relative rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
+            >
+              <Text className="text-caption font-semibold text-primary">🔔</Text>
+              {unread > 0 && (
+                <View className="absolute -right-1 -top-1 h-4 min-w-[16px] items-center justify-center rounded-full bg-danger px-1">
+                  <Text className="text-[10px] font-bold text-white">{unread}</Text>
+                </View>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => templatesRef.current?.expand()}
+              className="flex-row items-center gap-1 rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
+            >
+              <Text className="text-caption font-semibold text-primary">＋ Routines</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Unscheduled tray */}
@@ -296,6 +313,12 @@ export default function PlannerScreen() {
       )}
 
       <TemplatesSheet ref={templatesRef} dateISO={dateISO} onApplied={refresh} />
+      <NotificationsSheet
+        ref={notificationsRef}
+        notifications={notifications}
+        onMarkRead={markRead}
+        onMarkAllRead={markAllRead}
+      />
     </GradientBackdrop>
   );
 }

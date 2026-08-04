@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "insights",
     "routines",
     "gcal",
+    "notifications",
 ]
 
 MIDDLEWARE = [

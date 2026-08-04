@@ -47,6 +47,16 @@ export interface CalendarDay {
   error?: string;
 }
 
+export interface AppNotification {
+  id: string;
+  kind: "task_start" | "deadline";
+  title: string;
+  body: string;
+  task: string | null;
+  created_at: string;
+  read: boolean;
+}
+
 export interface Brief {
   summary: string;
   generated_by: "ai" | "fallback";
