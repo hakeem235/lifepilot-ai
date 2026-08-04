@@ -14,7 +14,7 @@ from rest_framework.test import APITestCase
 from users.models import UserProfile
 
 from . import google
-from .models import GoogleCalendarConnection, PendingOAuth
+from .models import ConnectionClaim, GoogleCalendarConnection, PendingOAuth
 from .views import STATE_SALT
 
 
@@ -60,11 +60,26 @@ class PureHelperTests(APITestCase):
         self.assertTrue(allday["all_day"])
 
     @override_settings(**CONFIGURED)
-    def test_build_auth_url_requests_readonly_scope(self):
-        url = google.build_auth_url("state123")
+    def test_build_auth_url_requests_readonly_scope_and_pkce(self):
+        url = google.build_auth_url("state123", "challenge123")
         self.assertIn("calendar.readonly", url)
         self.assertIn("access_type=offline", url)
         self.assertIn("state=state123", url)
+        self.assertIn("code_challenge=challenge123", url)
+        self.assertIn("code_challenge_method=S256", url)
+
+    def test_pkce_pair_is_s256(self):
+        import base64
+        import hashlib
+
+        verifier, challenge = google.pkce_pair()
+        expected = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+            .rstrip(b"=")
+            .decode()
+        )
+        self.assertEqual(challenge, expected)
+        self.assertNotEqual(verifier, challenge)
 
 
 class EndpointTests(APITestCase):
@@ -110,7 +125,8 @@ class EndpointTests(APITestCase):
         self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.me).exists())
 
     @override_settings(**CONFIGURED)
-    def test_callback_connects_on_valid_scope(self):
+    def test_callback_stows_claim_without_binding(self):
+        """Valid callback creates a claim + redirect, but binds NOTHING to a user."""
         state = initiate_state(self.me)
         with mock.patch.object(
             google, "exchange_code",
@@ -121,7 +137,45 @@ class EndpointTests(APITestCase):
         ):
             r = self.client.get(f"/api/gcal/callback/?code=abc&state={state}")
         self.assertEqual(r.status_code, 200)
+        self.assertIn("gcal_claim=", r.content.decode())
+        self.assertEqual(ConnectionClaim.objects.count(), 1)
+        # Crucially: no connection is bound until an authenticated finalize.
+        self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.me).exists())
+
+    @override_settings(**CONFIGURED)
+    def test_finalize_binds_to_authenticated_user(self):
+        """The claim binds tokens to whoever finalizes (authenticated), not to state."""
+        cc = ConnectionClaim.objects.create(
+            claim="claim123",
+            token_data={
+                "access_token": "a", "refresh_token": "r",
+                "scope": google.CALENDAR_SCOPE, "expires_in": 3600,
+            },
+        )
+        with as_user(self.me):
+            r = self.client.post("/api/gcal/finalize/", {"claim": "claim123"}, format="json")
+        self.assertEqual(r.status_code, 204)
         self.assertTrue(GoogleCalendarConnection.objects.filter(user=self.me).exists())
+        self.assertFalse(ConnectionClaim.objects.filter(pk=cc.pk).exists())  # single-use
+
+    @override_settings(**CONFIGURED)
+    def test_finalize_rejects_unknown_claim(self):
+        with as_user(self.me):
+            r = self.client.post("/api/gcal/finalize/", {"claim": "nope"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.me).exists())
+
+    @override_settings(**CONFIGURED)
+    def test_finalize_claim_is_single_use(self):
+        ConnectionClaim.objects.create(
+            claim="claim123",
+            token_data={"access_token": "a", "scope": google.CALENDAR_SCOPE, "expires_in": 3600},
+        )
+        with as_user(self.me):
+            first = self.client.post("/api/gcal/finalize/", {"claim": "claim123"}, format="json")
+            second = self.client.post("/api/gcal/finalize/", {"claim": "claim123"}, format="json")
+        self.assertEqual(first.status_code, 204)
+        self.assertEqual(second.status_code, 400)
 
     @override_settings(**CONFIGURED)
     def test_callback_rejects_unknown_nonce(self):

@@ -8,6 +8,9 @@ helpers can be unit-tested without hitting Google.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import secrets
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from urllib.parse import urlencode
 
@@ -29,7 +32,18 @@ def granted_scopes_ok(scope_str: str) -> bool:
     return CALENDAR_SCOPE in (scope_str or "").split()
 
 
-def build_auth_url(state: str) -> str:
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def pkce_pair() -> tuple[str, str]:
+    """Return (code_verifier, code_challenge) for PKCE S256."""
+    verifier = _b64url(secrets.token_bytes(64))  # 43–128 chars, URL-safe
+    challenge = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
+    return verifier, challenge
+
+
+def build_auth_url(state: str, code_challenge: str) -> str:
     """Consent URL requesting calendar.readonly with offline access (refresh token)."""
     params = {
         "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
@@ -40,23 +54,24 @@ def build_auth_url(state: str) -> str:
         "include_granted_scopes": "false",
         "prompt": "consent",
         "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
     }
     return f"{AUTH_ENDPOINT}?{urlencode(params)}"
 
 
-def exchange_code(code: str) -> dict:
+def exchange_code(code: str, code_verifier: str = "") -> dict:
     """Exchange an auth code for tokens. Raises httpx.HTTPStatusError on failure."""
-    resp = httpx.post(
-        TOKEN_ENDPOINT,
-        data={
-            "code": code,
-            "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
-            "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
-            "redirect_uri": settings.GOOGLE_OAUTH_REDIRECT_URI,
-            "grant_type": "authorization_code",
-        },
-        timeout=15,
-    )
+    data = {
+        "code": code,
+        "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
+        "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
+        "redirect_uri": settings.GOOGLE_OAUTH_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+    if code_verifier:
+        data["code_verifier"] = code_verifier
+    resp = httpx.post(TOKEN_ENDPOINT, data=data, timeout=15)
     resp.raise_for_status()
     return resp.json()
 

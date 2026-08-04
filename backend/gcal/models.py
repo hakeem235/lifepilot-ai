@@ -43,6 +43,28 @@ class PendingOAuth(models.Model):
     user = models.ForeignKey(
         UserProfile, on_delete=models.CASCADE, related_name="pending_oauth"
     )
+    # PKCE verifier for this flow; sent to Google at token exchange to prove the
+    # exchanger is the same party that initiated (protects the auth code).
+    code_verifier = models.CharField(max_length=128, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_fresh(self, max_age_seconds: int = 600) -> bool:
+        return timezone.now() <= self.created_at + timezone.timedelta(seconds=max_age_seconds)
+
+
+class ConnectionClaim(models.Model):
+    """Post-callback, pre-bind token holder (account-linking-CSRF defense).
+
+    The public callback does NOT bind tokens to a user. It stows the exchanged
+    token bundle here under a random `claim` secret and hands that secret back to
+    the app ONLY via the redirect to the device that completed consent. The app
+    then calls the authenticated /gcal/finalize with the claim, so tokens bind to
+    the Clerk-authenticated identity that actually granted — never to a user id an
+    attacker pre-baked into `state`.
+    """
+
+    claim = models.CharField(max_length=64, unique=True)
+    token_data = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     def is_fresh(self, max_age_seconds: int = 600) -> bool:

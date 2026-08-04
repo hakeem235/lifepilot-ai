@@ -1,9 +1,12 @@
-"""Google Calendar endpoints (Issue 9.3).
+"""Google Calendar endpoints (Issue 9.3, hardened).
 
-- status / auth-url / events / disconnect are Clerk-authenticated (per-user).
-- callback is public (Google's browser redirect hits it) and identifies the user
-  via a signed `state`, then verifies the granted scope really includes
-  calendar.readonly before marking the account connected (Base44 lesson 3).
+- status / auth-url / events / disconnect / finalize are Clerk-authenticated.
+- callback is public (Google's browser redirect hits it). It verifies the signed
+  single-use state, PKCE-exchanges the code, checks the granted scope includes
+  calendar.readonly (Base44 lesson 3), and — crucially — does NOT bind tokens to
+  a user. It stows them under a random claim delivered only to the device that
+  completed consent; the app then calls the authenticated /finalize to bind them
+  to the real Clerk identity (account-linking-CSRF defense).
 """
 
 import secrets
@@ -18,10 +21,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from users.models import UserProfile
-
 from . import google, service
-from .models import GoogleCalendarConnection, PendingOAuth
+from .models import ConnectionClaim, GoogleCalendarConnection, PendingOAuth
 
 STATE_SALT = "gcal.oauth.state"
 STATE_MAX_AGE = 600  # seconds
@@ -42,11 +43,13 @@ class CalendarAuthURLView(APIView):
             )
         # Single-use nonce recorded server-side and bound into the signed state, so
         # a state can be used at most once and only if it matches a real, recent
-        # initiation by this user (replay + CSRF defense).
+        # initiation by this user (replay + CSRF defense). PKCE verifier ties the
+        # code exchange to this initiation.
         nonce = secrets.token_urlsafe(32)
-        PendingOAuth.objects.create(user=request.user, nonce=nonce)
+        verifier, challenge = google.pkce_pair()
+        PendingOAuth.objects.create(user=request.user, nonce=nonce, code_verifier=verifier)
         state = signing.dumps({"u": str(request.user.id), "n": nonce}, salt=STATE_SALT)
-        return Response({"url": google.build_auth_url(state)})
+        return Response({"url": google.build_auth_url(state, challenge)})
 
 
 class CalendarCallbackView(APIView):
@@ -70,14 +73,11 @@ class CalendarCallbackView(APIView):
             if pending is not None:
                 pending.delete()
             return HttpResponse("Invalid or expired state.", status=400)
+        verifier = pending.code_verifier
         pending.delete()
 
-        user = UserProfile.objects.filter(id=user_id).first()
-        if user is None:
-            return HttpResponse("Unknown user.", status=400)
-
         try:
-            token_data = google.exchange_code(code)
+            token_data = google.exchange_code(code, verifier)
         except httpx.HTTPError:
             return HttpResponse("Token exchange failed.", status=502)
 
@@ -89,13 +89,33 @@ class CalendarCallbackView(APIView):
                 status=400,
             )
 
-        service.save_connection(user, token_data)
-        # Bounce back into the app.
+        # Do NOT bind tokens to a user here. Stow them under a random claim and hand
+        # it back only to the device that completed consent; the app finalizes with
+        # its authenticated identity, so tokens can't be bound to an attacker's
+        # pre-baked state (account-linking-CSRF defense).
+        claim = secrets.token_urlsafe(32)
+        ConnectionClaim.objects.create(claim=claim, token_data=token_data)
         return HttpResponse(
             "<html><body>Google Calendar connected. You can return to LifePilot."
-            "<script>window.location='lifepilot://planner';</script></body></html>",
+            f"<script>window.location='lifepilot://planner?gcal_claim={claim}';</script>"
+            "</body></html>",
             content_type="text/html",
         )
+
+
+class CalendarFinalizeView(APIView):
+    def post(self, request):
+        claim = (request.data.get("claim") or "").strip()
+        pending = ConnectionClaim.objects.filter(claim=claim).first() if claim else None
+        if pending is None or not pending.is_fresh(STATE_MAX_AGE):
+            if pending is not None:
+                pending.delete()
+            return Response(
+                {"detail": "Invalid or expired claim."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        service.save_connection(request.user, pending.token_data)
+        pending.delete()  # single-use
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class CalendarEventsView(APIView):
