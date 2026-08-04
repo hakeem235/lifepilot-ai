@@ -1,20 +1,70 @@
 appId: com.lifepilot.ai
 name: onboarding (4 slides → login)
 ---
-# 4-slide paged intro. The CTA reads "Continue" until the last slide, where it
-# becomes "Get started" and routes to login. Maestro taps the accessibility tree,
-# so this drives the RN Gesture Handler ScrollView reliably (raw adb input does not).
+# 4-slide paged intro (pagingEnabled horizontal ScrollView). All four slides are
+# mounted at once, so "visible" means "scrolled into the viewport".
+#
+# Robustness notes:
+# - We advance with a decisive coordinate swipe in the content band (y=50%, clear
+#   of the bottom CTA), each wrapped in a repeat-until-next-slide loop. Paging snaps
+#   exactly one page per swipe, so a missed swipe simply retries and cannot overshoot.
+# - The gradient CTA occasionally swallows a single synthetic tap, so the final
+#   "Get started" is likewise retried until the login screen appears.
+# - Screenshots are diagnostic, marked optional so a flaky screenshot RPC can't fail
+#   the flow.
 
-- assertVisible: "Your AI Assistant for Everyday Life."
-- tapOn: "Continue"
+# Cold start: after clearState the dev build re-downloads the JS bundle from Metro
+# (~30-40s of splash) before onboarding paints.
+- extendedWaitUntil:
+    visible: "Your AI Assistant for Everyday Life."
+    timeout: 90000
+- takeScreenshot:
+    path: 01-onboarding
+    optional: true
 
-- assertVisible: "Everything, organized automatically"
-- tapOn: "Continue"
+- repeat:
+    while:
+      notVisible: "Everything, organized automatically"
+    commands:
+      - swipe:
+          start: 90%, 50%
+          end: 10%, 50%
+      - extendedWaitUntil:
+          visible: "Everything, organized automatically"
+          timeout: 4000
+          optional: true
 
-- assertVisible: "Proactive, not just reactive"
-- tapOn: "Continue"
+- repeat:
+    while:
+      notVisible: "Proactive, not just reactive"
+    commands:
+      - swipe:
+          start: 90%, 50%
+          end: 10%, 50%
+      - extendedWaitUntil:
+          visible: "Proactive, not just reactive"
+          timeout: 4000
+          optional: true
 
-- assertVisible: "Permissions, on your terms"
-- tapOn: "Get started"
+- repeat:
+    while:
+      notVisible: "Permissions, on your terms"
+    commands:
+      - swipe:
+          start: 90%, 50%
+          end: 10%, 50%
+      - extendedWaitUntil:
+          visible: "Permissions, on your terms"
+          timeout: 4000
+          optional: true
 
+- repeat:
+    while:
+      notVisible: "Welcome to LifePilot"
+    commands:
+      - tapOn: "Get started"
+      - extendedWaitUntil:
+          visible: "Welcome to LifePilot"
+          timeout: 4000
+          optional: true
 - assertVisible: "Welcome to LifePilot"

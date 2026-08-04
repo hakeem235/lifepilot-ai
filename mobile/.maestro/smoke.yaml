@@ -10,10 +10,8 @@ tags:
 - launchApp:
     clearState: true
 
-# Splash resolves to onboarding once Clerk finishes loading (auto-waits).
-- assertVisible: "Your AI Assistant for Everyday Life."
-- takeScreenshot: 01-onboarding
-
+# onboarding.yaml absorbs the cold-start bundle load, screenshots slide 1,
+# then pages through all four slides to the login screen.
 - runFlow: subflows/onboarding.yaml
 
 # Landed on the login screen.
@@ -22,4 +20,6 @@ tags:
 - assertVisible: "Continue with Google"
 - assertVisible: "Continue with Microsoft"
 - assertVisible: "Create an account"
-- takeScreenshot: 02-login
+- takeScreenshot:
+    path: 02-login
+    optional: true

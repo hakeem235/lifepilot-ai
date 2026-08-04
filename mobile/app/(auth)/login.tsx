@@ -15,7 +15,7 @@ WebBrowser.maybeCompleteAuthSession();
 type Strategy = "oauth_apple" | "oauth_google" | "oauth_microsoft";
 
 const SSO_BUTTONS: { strategy: Strategy; label: string }[] = [
-  { strategy: "oauth_apple", label: " Continue with Apple" },
+  { strategy: "oauth_apple", label: "Continue with Apple" },
   { strategy: "oauth_google", label: "Continue with Google" },
   { strategy: "oauth_microsoft", label: "Continue with Microsoft" },
 ];
