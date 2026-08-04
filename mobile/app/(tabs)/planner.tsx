@@ -30,15 +30,12 @@ import { NotificationsSheet } from "../../components/NotificationsSheet";
 import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
+import { shiftISODate, todayISO } from "../../lib/date";
 import { useCalendar, useNotifications, usePlanner, useTasks } from "../../lib/hooks";
 import type { Priority, Task } from "../../lib/types";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM … 9 PM
 const SLOT_H = 64;
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function hourLabel(h: number): string {
   const ampm = h < 12 ? "AM" : "PM";
@@ -117,7 +114,8 @@ function DraggableChip({ task, ctx }: { task: Task; ctx: DragCtx }) {
 }
 
 export default function PlannerScreen() {
-  const dateISO = todayISO();
+  const [dateISO, setDateISO] = useState(todayISO());
+  const isToday = dateISO === todayISO();
   const { scheduled, unscheduled, loading, schedule, refresh } = usePlanner(dateISO);
   const { tasks: allTasks } = useTasks();
   const { day: calendar, connect } = useCalendar(dateISO);
@@ -197,13 +195,42 @@ export default function PlannerScreen() {
         <View className="flex-row items-start justify-between px-5 pt-2">
           <View>
             <Text className="text-display text-text">Planner</Text>
-            <Text className="mt-1 text-body text-text-dim">
-              {new Date(dateISO).toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
-            </Text>
+            <View className="mt-1 flex-row items-center gap-2">
+              <Pressable
+                onPress={() => setDateISO((d) => shiftISODate(d, -1))}
+                accessibilityLabel="Previous day"
+                className="px-1 active:opacity-60"
+              >
+                <Text className="text-body text-text-dim">‹</Text>
+              </Pressable>
+              <Text className="text-body text-text-dim">
+                {new Date(dateISO).toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </Text>
+              <Pressable
+                onPress={() => setDateISO((d) => shiftISODate(d, 1))}
+                accessibilityLabel="Next day"
+                className="px-1 active:opacity-60"
+              >
+                <Text className="text-body text-text-dim">›</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDateISO(todayISO())}
+                accessibilityLabel="Jump to today"
+                className={`rounded-chip px-2 py-0.5 active:opacity-80 ${
+                  isToday ? "bg-primary" : "bg-primary/10"
+                }`}
+              >
+                <Text
+                  className={`text-caption font-semibold ${isToday ? "text-white" : "text-primary"}`}
+                >
+                  Today
+                </Text>
+              </Pressable>
+            </View>
           </View>
           <View className="mt-1 flex-row items-center gap-2">
             <Pressable
