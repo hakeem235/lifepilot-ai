@@ -1,0 +1,8 @@
+# Maestro configuration — https://maestro.mobile.dev
+#
+# Flows that run when you execute `maestro test .maestro/`.
+# `subflows/` are building blocks included via runFlow and are never run on
+# their own (they assume the app is already in the right state).
+flows:
+  - "smoke.yaml"
+  - "full-journey.yaml"

@@ -1,0 +1,23 @@
+appId: com.lifepilot.ai
+name: tasks (create a real task)
+---
+# Tasks tab, then create a task through the add sheet. Persists to the backend
+# (requires Django reachable on localhost:8000) and appears back in the list.
+
+- tapOn: "Tasks"
+- assertVisible:
+    text: "Tasks"
+    index: 0
+
+# Open the add sheet via the FAB (accessibilityLabel "Add task").
+- tapOn: "Add task"
+- assertVisible: "New task"
+
+- tapOn: "What needs doing?"
+- inputText: "Ship the LifePilot MVP"
+# The title field submits on the keyboard's return key (onSubmitEditing).
+- pressKey: Enter
+
+# The new task shows up in the list.
+- assertVisible: "Ship the LifePilot MVP"
+- takeScreenshot: 04-tasks

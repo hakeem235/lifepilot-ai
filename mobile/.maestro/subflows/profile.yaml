@@ -1,0 +1,16 @@
+appId: com.lifepilot.ai
+name: profile (identity + dark mode)
+---
+# Profile tab: identity, the Dark mode toggle (drives the theme live), and sign out.
+- tapOn: "Profile"
+- assertVisible:
+    text: "Profile"
+    index: 0
+- assertVisible: "Dark mode"
+- assertVisible: "Sign out"
+- takeScreenshot: 07-profile-light
+
+# Flip the theme (targets the Switch by testID) and capture the dark variant.
+- tapOn:
+    id: "toggle-dark-mode"
+- takeScreenshot: 08-profile-dark

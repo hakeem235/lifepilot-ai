@@ -1,0 +1,25 @@
+appId: com.lifepilot.ai
+name: LifePilot AI — smoke (launch → onboarding → login)
+tags:
+  - smoke
+---
+# Fast, offline-safe check: the native build boots, the design system renders,
+# onboarding pages through, and the auth entry screen loads. No Clerk sign-up,
+# no backend required — good for a quick "is it alive" gate.
+
+- launchApp:
+    clearState: true
+
+# onboarding.yaml absorbs the cold-start bundle load, screenshots slide 1,
+# then pages through all four slides to the login screen.
+- runFlow: subflows/onboarding.yaml
+
+# Landed on the login screen.
+- assertVisible: "Welcome to LifePilot"
+- assertVisible: "Continue with Apple"
+- assertVisible: "Continue with Google"
+- assertVisible: "Continue with Microsoft"
+- assertVisible: "Create an account"
+- takeScreenshot:
+    path: 02-login
+    optional: true

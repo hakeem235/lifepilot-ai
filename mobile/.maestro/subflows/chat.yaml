@@ -1,0 +1,16 @@
+appId: com.lifepilot.ai
+name: chat (send a suggested prompt)
+---
+# AI Chat tab. Tapping a suggested prompt sends it and the assistant replies —
+# real Claude if ANTHROPIC_API_KEY is set, otherwise the deterministic,
+# task-grounded fallback (the reply arrives either way).
+
+- tapOn: "AI Chat"
+- assertVisible:
+    text: "AI Chat"
+    index: 0
+
+- tapOn: "Plan my day"
+# The tapped prompt becomes a sent message bubble.
+- assertVisible: "Plan my day"
+- takeScreenshot: 05-chat

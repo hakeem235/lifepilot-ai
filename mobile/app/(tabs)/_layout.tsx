@@ -1,9 +1,10 @@
 /**
  * App shell — 5-tab bottom navigation (PRD §4: Home · Tasks · AI Chat · Insights ·
- * Profile). Tab bar is themed from tokens. Screen content is real in Issues
- * 8.2–8.4; here each tab is a themed placeholder so the shell boots end-to-end.
+ * Profile) behind the biometric gate. The tab bar is a translucent glass surface
+ * floating over each screen's ambient gradient.
  */
 import { useAuth } from "@clerk/clerk-expo";
+import { BlurView } from "expo-blur";
 import { Redirect, Tabs } from "expo-router";
 import { Text, type ColorValue } from "react-native";
 
@@ -16,7 +17,7 @@ function TabIcon({ glyph, color }: { glyph: string; color: ColorValue }) {
 }
 
 export default function TabsLayout() {
-  const { colors } = useTheme();
+  const { colors, name } = useTheme();
   const { isLoaded, isSignedIn } = useAuth();
 
   if (isLoaded && !isSignedIn) {
@@ -30,8 +31,17 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarActiveTintColor: brand.primary,
           tabBarInactiveTintColor: colors.textDim,
+          sceneStyle: { backgroundColor: "transparent" },
+          tabBarBackground: () => (
+            <BlurView
+              intensity={50}
+              tint={name === "dark" ? "dark" : "light"}
+              style={{ position: "absolute", inset: 0 }}
+            />
+          ),
           tabBarStyle: {
-            backgroundColor: colors.card,
+            position: "absolute",
+            backgroundColor: name === "dark" ? "rgba(30,41,59,0.6)" : "rgba(255,255,255,0.7)",
             borderTopColor: colors.border,
           },
         }}
