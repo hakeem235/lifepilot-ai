@@ -29,3 +29,21 @@ class GoogleCalendarConnection(models.Model):
 
     def __str__(self) -> str:
         return f"GoogleCalendar<{self.user_id}>"
+
+
+class PendingOAuth(models.Model):
+    """A single-use OAuth initiation record (CSRF/replay defense).
+
+    Created when a user requests the consent URL; the callback must find and
+    consume the matching (nonce, user) row, so a signed state can be used at most
+    once and only if it corresponds to a real, recent initiation by that user.
+    """
+
+    nonce = models.CharField(max_length=64, unique=True)
+    user = models.ForeignKey(
+        UserProfile, on_delete=models.CASCADE, related_name="pending_oauth"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_fresh(self, max_age_seconds: int = 600) -> bool:
+        return timezone.now() <= self.created_at + timezone.timedelta(seconds=max_age_seconds)

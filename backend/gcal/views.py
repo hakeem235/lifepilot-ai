@@ -6,6 +6,7 @@
   calendar.readonly before marking the account connected (Base44 lesson 3).
 """
 
+import secrets
 from datetime import date
 
 import httpx
@@ -20,9 +21,10 @@ from rest_framework.views import APIView
 from users.models import UserProfile
 
 from . import google, service
-from .models import GoogleCalendarConnection
+from .models import GoogleCalendarConnection, PendingOAuth
 
 STATE_SALT = "gcal.oauth.state"
+STATE_MAX_AGE = 600  # seconds
 
 
 class CalendarStatusView(APIView):
@@ -38,7 +40,12 @@ class CalendarAuthURLView(APIView):
                 {"detail": "Google Calendar is not configured on the server."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        state = signing.dumps(str(request.user.id), salt=STATE_SALT)
+        # Single-use nonce recorded server-side and bound into the signed state, so
+        # a state can be used at most once and only if it matches a real, recent
+        # initiation by this user (replay + CSRF defense).
+        nonce = secrets.token_urlsafe(32)
+        PendingOAuth.objects.create(user=request.user, nonce=nonce)
+        state = signing.dumps({"u": str(request.user.id), "n": nonce}, salt=STATE_SALT)
         return Response({"url": google.build_auth_url(state)})
 
 
@@ -52,9 +59,18 @@ class CalendarCallbackView(APIView):
         if not code:
             return HttpResponse("Missing authorization code.", status=400)
         try:
-            user_id = signing.loads(state, salt=STATE_SALT, max_age=600)
-        except signing.BadSignature:
+            payload = signing.loads(state, salt=STATE_SALT, max_age=STATE_MAX_AGE)
+            user_id, nonce = payload["u"], payload["n"]
+        except (signing.BadSignature, KeyError, TypeError):
             return HttpResponse("Invalid or expired state.", status=400)
+
+        # Consume the single-use initiation record; reject if missing/stale/mismatched.
+        pending = PendingOAuth.objects.filter(nonce=nonce, user_id=user_id).first()
+        if pending is None or not pending.is_fresh(STATE_MAX_AGE):
+            if pending is not None:
+                pending.delete()
+            return HttpResponse("Invalid or expired state.", status=400)
+        pending.delete()
 
         user = UserProfile.objects.filter(id=user_id).first()
         if user is None:

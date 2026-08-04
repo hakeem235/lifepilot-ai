@@ -14,8 +14,15 @@ from rest_framework.test import APITestCase
 from users.models import UserProfile
 
 from . import google
-from .models import GoogleCalendarConnection
+from .models import GoogleCalendarConnection, PendingOAuth
 from .views import STATE_SALT
+
+
+def initiate_state(user):
+    """Mimic auth-url: record a single-use nonce and return the signed state."""
+    nonce = "test-nonce-" + str(user.id)
+    PendingOAuth.objects.create(user=user, nonce=nonce)
+    return signing.dumps({"u": str(user.id), "n": nonce}, salt=STATE_SALT)
 
 CONFIGURED = dict(
     GOOGLE_OAUTH_CLIENT_ID="cid",
@@ -93,7 +100,7 @@ class EndpointTests(APITestCase):
     @override_settings(**CONFIGURED)
     def test_callback_refuses_when_scope_dropped(self):
         """Lesson 3: if calendar scope isn't granted, do not mark connected."""
-        state = signing.dumps(str(self.me.id), salt=STATE_SALT)
+        state = initiate_state(self.me)
         with mock.patch.object(
             google, "exchange_code",
             return_value={"access_token": "a", "scope": "openid email", "expires_in": 3600},
@@ -104,7 +111,7 @@ class EndpointTests(APITestCase):
 
     @override_settings(**CONFIGURED)
     def test_callback_connects_on_valid_scope(self):
-        state = signing.dumps(str(self.me.id), salt=STATE_SALT)
+        state = initiate_state(self.me)
         with mock.patch.object(
             google, "exchange_code",
             return_value={
@@ -115,6 +122,29 @@ class EndpointTests(APITestCase):
             r = self.client.get(f"/api/gcal/callback/?code=abc&state={state}")
         self.assertEqual(r.status_code, 200)
         self.assertTrue(GoogleCalendarConnection.objects.filter(user=self.me).exists())
+
+    @override_settings(**CONFIGURED)
+    def test_callback_rejects_unknown_nonce(self):
+        """A validly-signed state with no matching initiation record is refused."""
+        state = signing.dumps({"u": str(self.me.id), "n": "never-issued"}, salt=STATE_SALT)
+        with mock.patch.object(google, "exchange_code") as exch:
+            r = self.client.get(f"/api/gcal/callback/?code=abc&state={state}")
+        self.assertEqual(r.status_code, 400)
+        exch.assert_not_called()  # rejected before any token exchange
+
+    @override_settings(**CONFIGURED)
+    def test_callback_nonce_is_single_use(self):
+        """Replaying a consumed state fails (nonce deleted on first use)."""
+        state = initiate_state(self.me)
+        good = {
+            "access_token": "a", "refresh_token": "r",
+            "scope": google.CALENDAR_SCOPE, "expires_in": 3600,
+        }
+        with mock.patch.object(google, "exchange_code", return_value=good):
+            first = self.client.get(f"/api/gcal/callback/?code=abc&state={state}")
+            second = self.client.get(f"/api/gcal/callback/?code=abc&state={state}")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 400)
 
     @override_settings(**CONFIGURED)
     def test_events_maps_when_connected(self):
