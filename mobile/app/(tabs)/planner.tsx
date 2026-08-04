@@ -24,9 +24,10 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
-import { usePlanner } from "../../lib/hooks";
+import { usePlanner, useTasks } from "../../lib/hooks";
 import type { Priority, Task } from "../../lib/types";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM … 9 PM
@@ -103,6 +104,7 @@ function DraggableChip({ task, ctx }: { task: Task; ctx: DragCtx }) {
 export default function PlannerScreen() {
   const dateISO = todayISO();
   const { scheduled, unscheduled, loading, schedule, refresh } = usePlanner(dateISO);
+  const { tasks: allTasks } = useTasks();
   const templatesRef = useRef<BottomSheet>(null);
 
   // Ghost overlay shared values — the single element that follows the finger.
@@ -221,6 +223,10 @@ export default function PlannerScreen() {
           contentContainerClassName="px-5 pb-28"
           showsVerticalScrollIndicator={false}
         >
+          <View className="mb-4">
+            <PriorityMatrix tasks={allTasks} />
+          </View>
+
           <View ref={timelineRef} collapsable={false}>
             {HOURS.map((h) => (
               <View
