@@ -16,8 +16,10 @@ import { useCallback, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, type View as RNView } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  measure,
   runOnJS,
   type SharedValue,
+  useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -60,7 +62,8 @@ type DragCtx = {
   ghostY: SharedValue<number>;
   baseX: SharedValue<number>;
   baseY: SharedValue<number>;
-  onBegin: (task: Task, ref: RNView | null) => void;
+  ghostVisible: SharedValue<number>;
+  onBegin: (task: Task) => void;
   onEnd: (absX: number, absY: number) => void;
 };
 
@@ -69,16 +72,27 @@ type DragCtx = {
  * so a re-render from the drag-start state update reconciles it in place instead
  * of remounting the GestureDetector mid-gesture. The lifted original is dimmed via
  * a local shared value, so no React re-render is needed to show the "picked up" state.
+ *
+ * Position is measured on the UI thread via measure() + useAnimatedRef — never by
+ * capturing a native element into a worklet (worklets can't serialize elements).
  */
 function DraggableChip({ task, ctx }: { task: Task; ctx: DragCtx }) {
-  const ref = useRef<RNView>(null);
+  const aref = useAnimatedRef<Animated.View>();
   const dim = useSharedValue(1);
 
   const pan = Gesture.Pan()
     .activateAfterLongPress(160)
     .onStart(() => {
+      const m = measure(aref);
+      if (m) {
+        ctx.baseX.value = m.pageX;
+        ctx.baseY.value = m.pageY;
+        ctx.ghostX.value = m.pageX;
+        ctx.ghostY.value = m.pageY;
+      }
+      ctx.ghostVisible.value = 1;
       dim.value = 0.3;
-      runOnJS(ctx.onBegin)(task, ref.current);
+      runOnJS(ctx.onBegin)(task);
     })
     .onUpdate((e) => {
       ctx.ghostX.value = ctx.baseX.value + e.translationX;
@@ -95,7 +109,7 @@ function DraggableChip({ task, ctx }: { task: Task; ctx: DragCtx }) {
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View ref={ref} collapsable={false} style={style}>
+      <Animated.View ref={aref} collapsable={false} style={style}>
         <ChipVisual task={task} />
       </Animated.View>
     </GestureDetector>
@@ -127,21 +141,12 @@ export default function PlannerScreen() {
   const trayRef = useRef<RNView>(null);
   const timelineRef = useRef<RNView>(null);
 
-  const beginDrag = useCallback(
-    (task: Task, ref: RNView | null) => {
-      if (!ref) return;
-      ref.measureInWindow((x, y) => {
-        baseX.value = x;
-        baseY.value = y;
-        ghostX.value = x;
-        ghostY.value = y;
-        ghostVisible.value = 1;
-        activeIdRef.current = task.id;
-        setDragTask(task);
-      });
-    },
-    [baseX, baseY, ghostX, ghostY, ghostVisible],
-  );
+  const beginDrag = useCallback((task: Task) => {
+    // Position/ghost are set on the UI thread by the gesture worklet (measure());
+    // here we only reflect the picked-up task into React so the ghost renders.
+    activeIdRef.current = task.id;
+    setDragTask(task);
+  }, []);
 
   const endDrag = useCallback(
     (absX: number, absY: number) => {
@@ -173,7 +178,15 @@ export default function PlannerScreen() {
     opacity: ghostVisible.value,
   }));
 
-  const ctx: DragCtx = { ghostX, ghostY, baseX, baseY, onBegin: beginDrag, onEnd: endDrag };
+  const ctx: DragCtx = {
+    ghostX,
+    ghostY,
+    baseX,
+    baseY,
+    ghostVisible,
+    onBegin: beginDrag,
+    onEnd: endDrag,
+  };
 
   const bySlot = (hour: number) =>
     scheduled.filter((t) => (t.scheduled_time ?? "").startsWith(String(hour).padStart(2, "0") + ":"));
