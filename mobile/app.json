@@ -26,6 +26,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withAndroidJdkHome",
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",
