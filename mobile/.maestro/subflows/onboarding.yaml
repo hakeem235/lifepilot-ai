@@ -1,0 +1,20 @@
+appId: com.lifepilot.ai
+name: onboarding (4 slides → login)
+---
+# 4-slide paged intro. The CTA reads "Continue" until the last slide, where it
+# becomes "Get started" and routes to login. Maestro taps the accessibility tree,
+# so this drives the RN Gesture Handler ScrollView reliably (raw adb input does not).
+
+- assertVisible: "Your AI Assistant for Everyday Life."
+- tapOn: "Continue"
+
+- assertVisible: "Everything, organized automatically"
+- tapOn: "Continue"
+
+- assertVisible: "Proactive, not just reactive"
+- tapOn: "Continue"
+
+- assertVisible: "Permissions, on your terms"
+- tapOn: "Get started"
+
+- assertVisible: "Welcome to LifePilot"

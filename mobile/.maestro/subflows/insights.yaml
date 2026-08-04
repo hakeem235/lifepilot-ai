@@ -1,0 +1,9 @@
+appId: com.lifepilot.ai
+name: insights (real metrics)
+---
+# Insights tab renders productivity metrics derived from real task/usage data.
+- tapOn: "Insights"
+- assertVisible:
+    text: "Insights"
+    index: 0
+- takeScreenshot: 06-insights

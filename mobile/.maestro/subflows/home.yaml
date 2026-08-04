@@ -1,0 +1,10 @@
+appId: com.lifepilot.ai
+name: home (authenticated shell)
+---
+# The 5-tab bottom navigation is present and Home is the landing tab.
+- assertVisible: "Home"
+- assertVisible: "Tasks"
+- assertVisible: "AI Chat"
+- assertVisible: "Insights"
+- assertVisible: "Profile"
+- takeScreenshot: 03-home

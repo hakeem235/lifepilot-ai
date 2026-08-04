@@ -101,7 +101,12 @@ export default function ProfileScreen() {
             </Text>
             <GlassCard>
               <Row label="Dark mode">
-                <Switch value={name === "dark"} onValueChange={toggle} />
+                <Switch
+                  testID="toggle-dark-mode"
+                  accessibilityLabel="Dark mode toggle"
+                  value={name === "dark"}
+                  onValueChange={toggle}
+                />
               </Row>
               <View className="border-t border-border/10" />
               <Row label="Notifications">

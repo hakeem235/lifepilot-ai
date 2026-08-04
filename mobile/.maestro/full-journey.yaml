@@ -1,0 +1,28 @@
+appId: com.lifepilot.ai
+name: LifePilot AI — full journey (onboarding → sign-up → all tabs)
+tags:
+  - e2e
+env:
+  PASSWORD: "LifePilotQA123!"
+  # Clerk test-mode verification code — accepted for any "+clerk_test" address.
+  CODE: "424242"
+---
+# End-to-end drive-through of the whole app against the live Clerk dev instance
+# and the local backend. Prerequisites (see README): emulator/device running the
+# native dev build, Metro up, Django backend reachable on localhost:8000
+# (`adb reverse tcp:8000 tcp:8000`), and network access for Clerk.
+
+# Unique Clerk test email per run so sign-up never collides. The "+clerk_test"
+# subaddress puts Clerk in test mode (no real email; code 424242 always works).
+- evalScript: ${output.email = 'qa_' + Date.now() + '+clerk_test@example.com'}
+
+- launchApp:
+    clearState: true
+
+- runFlow: subflows/onboarding.yaml
+- runFlow: subflows/signup.yaml
+- runFlow: subflows/home.yaml
+- runFlow: subflows/tasks.yaml
+- runFlow: subflows/chat.yaml
+- runFlow: subflows/insights.yaml
+- runFlow: subflows/profile.yaml
