@@ -7,6 +7,7 @@ from .views import (
     DailyReviewView,
     PlanDayApplyView,
     PlanDayView,
+    UndoView,
 )
 
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
     path("planner/capture/apply/", CaptureApplyView.as_view(), name="capture-apply"),
     path("planner/review/", DailyReviewView.as_view(), name="daily-review"),
     path("planner/review/apply/", DailyReviewApplyView.as_view(), name="daily-review-apply"),
+    path("planner/undo/", UndoView.as_view(), name="planner-undo"),
 ]

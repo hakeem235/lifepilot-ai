@@ -38,6 +38,7 @@ import { NotificationsSheet } from "../../components/NotificationsSheet";
 import { PlanPreviewSheet } from "../../components/PlanPreviewSheet";
 import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
+import { UndoBanner } from "../../components/UndoBanner";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
 import { shiftISODate, todayISO } from "../../lib/date";
 import {
@@ -47,6 +48,7 @@ import {
   usePlanDay,
   usePlanner,
   useTasks,
+  useUndo,
 } from "../../lib/hooks";
 import type { PlanAssignment, Priority, Task } from "../../lib/types";
 
@@ -149,15 +151,30 @@ export default function PlannerScreen() {
     planRef.current?.expand();
   }, [propose]);
 
+  // Reversibility (Issue 10.3): every apply hands back the prior placements, so
+  // confirming a plan stays a low-stakes tap.
+  const { pending: undoOffer, undoing, offer, undo, clear: clearUndo } = useUndo();
+
   const onConfirmPlan = useCallback(
     async (assignments: PlanAssignment[]) => {
-      await apply(assignments);
+      const result = await apply(assignments);
       planRef.current?.close();
       dismiss();
+      if (result) {
+        offer(
+          `Scheduled ${result.applied.length} task${result.applied.length === 1 ? "" : "s"}.`,
+          result.previous,
+        );
+      }
       await refresh();
     },
-    [apply, dismiss, refresh],
+    [apply, dismiss, offer, refresh],
   );
+
+  const onUndo = useCallback(async () => {
+    await undo();
+    await refresh();
+  }, [undo, refresh]);
 
   const onRejectPlan = useCallback(() => {
     planRef.current?.close();
@@ -182,11 +199,17 @@ export default function PlannerScreen() {
 
   const onConfirmReview = useCallback(
     async (moves: PlanAssignment[]) => {
-      await confirmReview(moves);
+      const result = await confirmReview(moves);
       reviewRef.current?.close();
+      if (result) {
+        offer(
+          `Moved ${result.applied.length} task${result.applied.length === 1 ? "" : "s"} to tomorrow.`,
+          result.previous,
+        );
+      }
       await refresh();
     },
-    [confirmReview, refresh],
+    [confirmReview, offer, refresh],
   );
 
   const eventsAt = (hour: number) =>
@@ -362,6 +385,15 @@ export default function PlannerScreen() {
             </ScrollView>
           )}
         </View>
+
+        {undoOffer !== null && (
+          <UndoBanner
+            label={undoOffer.label}
+            undoing={undoing}
+            onUndo={onUndo}
+            onDismiss={clearUndo}
+          />
+        )}
 
         {/* Timeline */}
         <ScrollView

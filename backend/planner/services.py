@@ -26,6 +26,7 @@ from assistant.models import AIUsage
 from gcal.service import get_day_events
 from tasks.models import Task
 
+from .gate import owned_task
 from .scheduling import (
     Assignment,
     Candidate,
@@ -252,8 +253,8 @@ def apply_day_plan(user, day: date, assignments: list[dict]) -> dict:
         if hour is None:
             rejected.append({"task_id": task_id, "reason": "invalid_time"})
             continue
-        # Ownership: filtering by user means another user's id simply isn't found.
-        task = Task.objects.filter(user=user, id=task_id).first() if task_id else None
+        # Ownership: another user's id is indistinguishable from a nonexistent one.
+        task = owned_task(user, task_id)
         if task is None:
             rejected.append({"task_id": task_id, "reason": "not_found"})
             continue
