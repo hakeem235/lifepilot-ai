@@ -29,6 +29,7 @@ class Notification(models.Model):
     class Kind(models.TextChoices):
         TASK_START = "task_start"
         DEADLINE = "deadline"
+        DAILY_REVIEW = "daily_review"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
