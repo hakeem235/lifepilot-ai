@@ -281,8 +281,11 @@ export default function PlannerScreen() {
   return (
     <GradientBackdrop>
       <SafeAreaView edges={["top"]} className="flex-1">
-        <View className="flex-row items-start justify-between px-5 pt-2">
-          <View>
+        {/* Header row 1: identity + day navigation, with the two icon actions.
+            The primary actions live on their own row below — four controls beside
+            the title overflowed narrow screens once 10.0/10.2 added theirs. */}
+        <View className="flex-row items-start justify-between gap-2 px-5 pt-2">
+          <View className="min-w-0 flex-1">
             <Text className="text-display text-text">Planner</Text>
             <View className="mt-1 flex-row items-center gap-2">
               <Pressable
@@ -292,7 +295,7 @@ export default function PlannerScreen() {
               >
                 <Text className="text-body text-text-dim">‹</Text>
               </Pressable>
-              <Text className="text-body text-text-dim">
+              <Text className="shrink text-body text-text-dim" numberOfLines={1}>
                 {new Date(dateISO).toLocaleDateString(undefined, {
                   weekday: "long",
                   month: "long",
@@ -321,7 +324,8 @@ export default function PlannerScreen() {
               </Pressable>
             </View>
           </View>
-          <View className="mt-1 flex-row items-center gap-2">
+
+          <View className="mt-1 shrink-0 flex-row items-center gap-2">
             <Pressable
               onPress={onOpenReview}
               accessibilityLabel="Review my day"
@@ -341,25 +345,35 @@ export default function PlannerScreen() {
                 </View>
               )}
             </Pressable>
-            <Pressable
-              onPress={onPlanMyDay}
-              disabled={planning}
-              accessibilityLabel="Plan my day"
-              className="flex-row items-center gap-1 rounded-chip bg-primary px-3 py-2 active:opacity-80"
-            >
-              {planning ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text className="text-caption font-semibold text-white">✨ Plan my day</Text>
-              )}
-            </Pressable>
-            <Pressable
-              onPress={() => templatesRef.current?.expand()}
-              className="flex-row items-center gap-1 rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
-            >
-              <Text className="text-caption font-semibold text-primary">＋ Routines</Text>
-            </Pressable>
           </View>
+        </View>
+
+        {/* Header row 2: the primary actions, splitting the width evenly so
+            neither can push the other off-screen. */}
+        <View className="mt-3 flex-row items-center gap-2 px-5">
+          <Pressable
+            onPress={onPlanMyDay}
+            disabled={planning}
+            accessibilityLabel="Plan my day"
+            className="min-w-0 flex-1 flex-row items-center justify-center gap-1 rounded-chip bg-primary px-3 py-2 active:opacity-80"
+          >
+            {planning ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text className="text-caption font-semibold text-white" numberOfLines={1}>
+                ✨ Plan my day
+              </Text>
+            )}
+          </Pressable>
+          <Pressable
+            onPress={() => templatesRef.current?.expand()}
+            accessibilityLabel="Routines"
+            className="min-w-0 flex-1 flex-row items-center justify-center gap-1 rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
+          >
+            <Text className="text-caption font-semibold text-primary" numberOfLines={1}>
+              ＋ Routines
+            </Text>
+          </Pressable>
         </View>
 
         {/* Unscheduled tray */}
