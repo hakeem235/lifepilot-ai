@@ -1,7 +1,9 @@
-"""Plan-my-day endpoints (Issue 10.0), split along the D10 propose/apply seam.
+"""Planner AI endpoints, split along the D10 propose/apply seam.
 
     POST /api/planner/plan-day/          → preview only, writes nothing
     POST /api/planner/plan-day/apply/    → writes the user-confirmed placements
+    POST /api/planner/capture/           → preview only, creates no Task
+    POST /api/planner/capture/apply/     → creates the confirmed task
 
 The split is the safety property: there is no endpoint that both asks the model
 for a plan and writes it. The user must come back with an explicit apply call
@@ -17,7 +19,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import services
+from tasks.serializers import TaskSerializer
+
+from . import capture, services
 
 
 def _requested_day(request) -> date | None:
@@ -57,3 +61,30 @@ class PlanDayApplyView(APIView):
             return Response({"detail": "assignments must be a list."}, status=400)
         result = services.apply_day_plan(request.user, day, assignments)
         return Response(result)
+
+
+class CaptureView(APIView):
+    """Parse free text into a task draft. Creates no Task (D10)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        message = (request.data.get("message") or "").strip()
+        if not message:
+            return Response({"detail": "message is required."}, status=400)
+        if len(message) > 1000:
+            return Response({"detail": "message is too long."}, status=400)
+        return Response(capture.propose_capture(request.user, message))
+
+
+class CaptureApplyView(APIView):
+    """Create the confirmed task. The only path in capture that writes."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        draft = request.data.get("draft")
+        task, warning = capture.apply_capture(request.user, draft)
+        if task is None:
+            return Response({"detail": "draft is missing a usable title."}, status=400)
+        return Response({"task": TaskSerializer(task).data, "warning": warning}, status=201)

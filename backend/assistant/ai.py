@@ -271,3 +271,100 @@ def propose_schedule(ctx: dict) -> StructuredResult:
         for event in ctx["events"]:
             lines.append(f"- {event}")
     return _tool_call(settings.ANTHROPIC_MODEL_PLAN, system, "\n".join(lines), PLAN_DAY_TOOL)
+
+
+CAPTURE_TOOL = {
+    "name": "capture_task",
+    "description": (
+        "Extract a single actionable task from the user's message. Always produce a "
+        "clean imperative title. Express any date symbolically — never compute a "
+        "calendar date yourself, and never guess today's date."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": (
+                    "Short imperative task title, e.g. 'Call the dentist'. Strip filler "
+                    "like 'remind me to'. Never include the date or time."
+                ),
+            },
+            "date_mode": {
+                "type": "string",
+                "enum": ["none", "relative", "weekday", "absolute"],
+                "description": (
+                    "How the date was expressed. 'none' if no date was mentioned. "
+                    "'relative' for today/tomorrow/in N days. 'weekday' for a named day "
+                    "of the week. 'absolute' only when a full explicit date was given."
+                ),
+            },
+            "relative_days": {
+                "type": "integer",
+                "description": "Days from today when date_mode is 'relative': 0=today, 1=tomorrow.",
+            },
+            "weekday": {
+                "type": "string",
+                "enum": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday",
+                ],
+                "description": "The named day, when date_mode is 'weekday'.",
+            },
+            "weekday_which": {
+                "type": "string",
+                "enum": ["this", "next"],
+                "description": "'next' only when the user explicitly said 'next <day>'.",
+            },
+            "absolute_date": {
+                "type": "string",
+                "description": "YYYY-MM-DD, only when date_mode is 'absolute'.",
+            },
+            "hour": {
+                "type": "integer",
+                "description": "24-hour clock hour if a time was given, e.g. 2pm → 14. Omit if none.",
+            },
+            "minute": {"type": "integer", "description": "Minutes past the hour; 0 if unstated."},
+            "priority": {
+                "type": "string",
+                "enum": ["high", "medium", "low"],
+                "description": (
+                    "'high' only for explicit urgency words (urgent, ASAP, critical, "
+                    "important). Default 'medium'."
+                ),
+            },
+            "notes": {
+                "type": "string",
+                "description": "Any leftover detail worth keeping. Empty string if none.",
+            },
+        },
+        "required": ["title", "date_mode", "priority"],
+    },
+}
+
+
+def parse_capture(message: str) -> StructuredResult:
+    """Turn free text into a structured task draft (D13: the cheap model).
+
+    Bounded structured extraction — no task context is sent, because the model's
+    only job is reading THIS sentence. The returned draft is unvalidated: the
+    caller resolves the symbolic date server-side and validates every field.
+    """
+    system = (
+        "You extract one task from a short message the user typed into their planner.\n"
+        "- Produce a clean imperative title with filler removed.\n"
+        "- You do NOT know today's date. Never output a computed date. Describe the "
+        "date symbolically and the server will resolve it.\n"
+        "- Only set a time if the user gave one.\n"
+        "- Only set priority 'high' if the user signalled urgency.\n"
+        "- If the message is just a bare thing to do, that is fine: title only, "
+        "date_mode 'none'."
+    )
+    return _tool_call(
+        settings.ANTHROPIC_MODEL_SUMMARY, system, message, CAPTURE_TOOL, max_tokens=600
+    )
