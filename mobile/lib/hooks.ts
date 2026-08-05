@@ -17,6 +17,7 @@ import type {
   CaptureDraft,
   CaptureProposal,
   ChatMessage,
+  DailyReview,
   Insights,
   PlanApplyResult,
   PlanAssignment,
@@ -484,4 +485,58 @@ export function useCapture() {
   const discard = useCallback(() => setProposal(null), []);
 
   return { proposal, parsing, saving, parse, confirm, discard };
+}
+
+/**
+ * Daily review (Issue 10.2) — the evening done/slipped summary and a one-tap
+ * roll-forward of what didn't happen. Same shape as the other AI surfaces: the
+ * review is fetched as a proposal and `confirm` sends back only the moves the
+ * user kept (D10).
+ */
+export function useDailyReview(dateISO: string) {
+  const api = useApi();
+  const [reviewData, setReviewData] = useState<DailyReview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api(`/api/planner/review/?date=${dateISO}`);
+      setReviewData(res.ok ? ((await res.json()) as DailyReview) : null);
+    } catch {
+      setReviewData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [api, dateISO]);
+
+  const confirm = useCallback(
+    async (moves: PlanAssignment[]): Promise<boolean> => {
+      if (!reviewData) return false;
+      setApplying(true);
+      try {
+        const res = await api("/api/planner/review/apply/", {
+          method: "POST",
+          body: JSON.stringify({
+            reschedule_date: reviewData.reschedule_date,
+            moves: moves.map((m) => ({
+              task_id: m.task_id,
+              scheduled_time: m.scheduled_time,
+            })),
+          }),
+        });
+        return res.ok;
+      } catch {
+        return false;
+      } finally {
+        setApplying(false);
+      }
+    },
+    [api, reviewData],
+  );
+
+  const dismiss = useCallback(() => setReviewData(null), []);
+
+  return { review: reviewData, loading, applying, load, confirm, dismiss };
 }

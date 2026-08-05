@@ -65,7 +65,7 @@ def _candidates(user, day: date) -> tuple[list[Candidate], dict[str, Task]]:
     return candidates, {str(t.id): t for t in tasks}
 
 
-def _occupied_hours(user, day: date, calendar: dict) -> set[int]:
+def occupied_hours(user, day: date, calendar: dict) -> set[int]:
     """Hours the plan must work around: calendar events (D14) + already-placed tasks."""
     occupied = event_hours(calendar.get("events", []))
     placed = Task.objects.filter(user=user, scheduled_date=day).exclude(
@@ -149,7 +149,7 @@ def propose_day_plan(user, day: date) -> dict:
     """Build a confirmable plan preview for `day`. Writes nothing (D10)."""
     calendar = get_day_events(user, day)
     candidates, by_id = _candidates(user, day)
-    occupied = _occupied_hours(user, day, calendar)
+    occupied = occupied_hours(user, day, calendar)
     available = free_hours(occupied)
 
     generated_by = "fallback"

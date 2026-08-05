@@ -139,3 +139,19 @@ export interface CaptureProposal {
   understood: boolean;
   slot_conflict: boolean;
 }
+
+/** The evening review (Issue 10.2) — a summary plus proposed roll-forwards. */
+export interface DailyReview {
+  kind: "daily_review";
+  date: string;
+  reschedule_date: string;
+  generated_by: "ai" | "fallback";
+  summary: string;
+  done: { task_id: string; title: string }[];
+  slipped: { task_id: string; title: string; priority: Priority }[];
+  completion_rate: number;
+  proposed_moves: PlanAssignment[];
+  overflow: { task_id: string; title: string; reason: string }[];
+  calendar_connected: boolean;
+  free_hours: number[];
+}

@@ -33,13 +33,21 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { DailyReviewSheet } from "../../components/DailyReviewSheet";
 import { NotificationsSheet } from "../../components/NotificationsSheet";
 import { PlanPreviewSheet } from "../../components/PlanPreviewSheet";
 import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
 import { shiftISODate, todayISO } from "../../lib/date";
-import { useCalendar, useNotifications, usePlanDay, usePlanner, useTasks } from "../../lib/hooks";
+import {
+  useCalendar,
+  useDailyReview,
+  useNotifications,
+  usePlanDay,
+  usePlanner,
+  useTasks,
+} from "../../lib/hooks";
 import type { PlanAssignment, Priority, Task } from "../../lib/types";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM … 9 PM
@@ -156,6 +164,31 @@ export default function PlannerScreen() {
     dismiss();
   }, [dismiss]);
 
+  // Evening review (Issue 10.2). Slipped tasks roll forward only once confirmed.
+  const reviewRef = useRef<BottomSheet>(null);
+  const {
+    review,
+    loading: reviewLoading,
+    applying: reviewApplying,
+    load: loadReview,
+    confirm: confirmReview,
+    dismiss: dismissReview,
+  } = useDailyReview(dateISO);
+
+  const onOpenReview = useCallback(() => {
+    reviewRef.current?.expand();
+    void loadReview();
+  }, [loadReview]);
+
+  const onConfirmReview = useCallback(
+    async (moves: PlanAssignment[]) => {
+      await confirmReview(moves);
+      reviewRef.current?.close();
+      await refresh();
+    },
+    [confirmReview, refresh],
+  );
+
   const eventsAt = (hour: number) =>
     calendar.events.filter((e) => e.start && new Date(e.start).getHours() === hour);
 
@@ -266,6 +299,13 @@ export default function PlannerScreen() {
             </View>
           </View>
           <View className="mt-1 flex-row items-center gap-2">
+            <Pressable
+              onPress={onOpenReview}
+              accessibilityLabel="Review my day"
+              className="rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
+            >
+              <Text className="text-caption font-semibold text-primary">🌙</Text>
+            </Pressable>
             <Pressable
               onPress={() => notificationsRef.current?.expand()}
               accessibilityLabel="Notifications"
@@ -403,6 +443,14 @@ export default function PlannerScreen() {
         applying={applying}
         onConfirm={onConfirmPlan}
         onReject={onRejectPlan}
+      />
+      <DailyReviewSheet
+        ref={reviewRef}
+        review={review}
+        loading={reviewLoading}
+        applying={reviewApplying}
+        onConfirm={onConfirmReview}
+        onClose={dismissReview}
       />
       <TemplatesSheet ref={templatesRef} dateISO={dateISO} onApplied={refresh} />
       <NotificationsSheet

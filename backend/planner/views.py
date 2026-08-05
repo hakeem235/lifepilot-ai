@@ -4,6 +4,8 @@
     POST /api/planner/plan-day/apply/    → writes the user-confirmed placements
     POST /api/planner/capture/           → preview only, creates no Task
     POST /api/planner/capture/apply/     → creates the confirmed task
+    GET  /api/planner/review/            → evening review, writes nothing
+    POST /api/planner/review/apply/      → rolls confirmed slipped tasks forward
 
 The split is the safety property: there is no endpoint that both asks the model
 for a plan and writes it. The user must come back with an explicit apply call
@@ -12,7 +14,7 @@ carrying the placements they confirmed.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
@@ -21,7 +23,7 @@ from rest_framework.views import APIView
 
 from tasks.serializers import TaskSerializer
 
-from . import capture, services
+from . import capture, review, services
 
 
 def _requested_day(request) -> date | None:
@@ -88,3 +90,37 @@ class CaptureApplyView(APIView):
         if task is None:
             return Response({"detail": "draft is missing a usable title."}, status=400)
         return Response({"task": TaskSerializer(task).data, "warning": warning}, status=201)
+
+
+class DailyReviewView(APIView):
+    """The evening review for a day. Writes nothing (D10)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        day = _requested_day(request)
+        if day is None:
+            return Response({"detail": "date must be YYYY-MM-DD."}, status=400)
+        return Response(review.propose_review(request.user, day))
+
+
+class DailyReviewApplyView(APIView):
+    """Roll the confirmed slipped tasks forward.
+
+    Delegates to the same validated writer the auto-scheduler uses, so the
+    reschedule inherits its ownership check, conflict re-validation and
+    `previous`-state capture rather than reimplementing them.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        raw = request.data.get("reschedule_date") or request.data.get("date")
+        try:
+            target = date.fromisoformat(str(raw)) if raw else timezone.localdate() + timedelta(days=1)
+        except ValueError:
+            return Response({"detail": "reschedule_date must be YYYY-MM-DD."}, status=400)
+        moves = request.data.get("moves")
+        if not isinstance(moves, list):
+            return Response({"detail": "moves must be a list."}, status=400)
+        return Response(services.apply_day_plan(request.user, target, moves))

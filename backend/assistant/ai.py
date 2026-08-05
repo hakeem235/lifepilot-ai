@@ -368,3 +368,45 @@ def parse_capture(message: str) -> StructuredResult:
     return _tool_call(
         settings.ANTHROPIC_MODEL_SUMMARY, system, message, CAPTURE_TOOL, max_tokens=600
     )
+
+
+# --- Daily review (Issue 10.2) ---------------------------------------------------
+
+def _review_fallback(done: list[str], slipped: list[str]) -> str:
+    total = len(done) + len(slipped)
+    if total == 0:
+        return "Nothing was on today's plan. A clean slate for tomorrow."
+    if not slipped:
+        return f"You finished all {len(done)} task{'s' if len(done) != 1 else ''} today. Strong day."
+    if not done:
+        return (
+            f"{len(slipped)} task{'s' if len(slipped) != 1 else ''} didn't get done today. "
+            "Roll them forward and start fresh."
+        )
+    return (
+        f"You completed {len(done)} of {total} tasks today. "
+        f"{len(slipped)} slipped — they can move to tomorrow."
+    )
+
+
+def daily_review(done: list[str], slipped: list[str]) -> AIResult:
+    """The end-of-day summary sentence (D13: the capable model).
+
+    Prose only, and display-only: nothing is parsed out of this text and no field
+    is derived from it. The reschedule proposal that sits next to it in the UI is
+    computed deterministically, not read out of this string — which is what keeps
+    a chatty model from ever moving a task.
+    """
+    system = (
+        "You are LifePilot writing a user's end-of-day review. In 1–2 sentences: "
+        "acknowledge what they finished, name what slipped without judgement, and "
+        "point at tomorrow. Warm, direct, specific, no preamble, no bullet points."
+    )
+    user = (
+        f"Completed today ({len(done)}): {', '.join(done[:5]) or 'nothing'}.\n"
+        f"Still open ({len(slipped)}): {', '.join(slipped[:5]) or 'nothing'}."
+    )
+    text = _complete(settings.ANTHROPIC_MODEL_PLAN, system, user, max_tokens=200)
+    if text:
+        return AIResult(text=text, generated_by="ai")
+    return AIResult(text=_review_fallback(done, slipped), generated_by="fallback")
