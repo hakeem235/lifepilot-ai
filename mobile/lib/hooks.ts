@@ -22,6 +22,7 @@ import type {
   PlanApplyResult,
   PlanAssignment,
   PlanProposal,
+  PreviousPlacement,
   Priority,
   Task,
   TaskTemplate,
@@ -512,8 +513,8 @@ export function useDailyReview(dateISO: string) {
   }, [api, dateISO]);
 
   const confirm = useCallback(
-    async (moves: PlanAssignment[]): Promise<boolean> => {
-      if (!reviewData) return false;
+    async (moves: PlanAssignment[]): Promise<PlanApplyResult | null> => {
+      if (!reviewData) return null;
       setApplying(true);
       try {
         const res = await api("/api/planner/review/apply/", {
@@ -526,9 +527,10 @@ export function useDailyReview(dateISO: string) {
             })),
           }),
         });
-        return res.ok;
+        if (!res.ok) return null;
+        return (await res.json()) as PlanApplyResult;
       } catch {
-        return false;
+        return null;
       } finally {
         setApplying(false);
       }
@@ -539,4 +541,53 @@ export function useDailyReview(dateISO: string) {
   const dismiss = useCallback(() => setReviewData(null), []);
 
   return { review: reviewData, loading, applying, load, confirm, dismiss };
+}
+
+/**
+ * Reversing an applied AI change (Issue 10.3) — the other half of the gate.
+ *
+ * Confirming a plan is low-stakes only if it can be walked back, so every apply
+ * hands back what it needs to reverse itself and this hook holds it until the
+ * user either uses it or moves on.
+ */
+export function useUndo() {
+  const api = useApi();
+  const [pending, setPending] = useState<{
+    label: string;
+    previous: PreviousPlacement[];
+    createdTaskIds: string[];
+  } | null>(null);
+  const [undoing, setUndoing] = useState(false);
+
+  const offer = useCallback(
+    (label: string, previous: PreviousPlacement[], createdTaskIds: string[] = []) => {
+      if (previous.length === 0 && createdTaskIds.length === 0) return;
+      setPending({ label, previous, createdTaskIds });
+    },
+    [],
+  );
+
+  const undo = useCallback(async (): Promise<boolean> => {
+    if (!pending) return false;
+    setUndoing(true);
+    try {
+      const res = await api("/api/planner/undo/", {
+        method: "POST",
+        body: JSON.stringify({
+          previous: pending.previous,
+          created_task_ids: pending.createdTaskIds,
+        }),
+      });
+      setPending(null);
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      setUndoing(false);
+    }
+  }, [api, pending]);
+
+  const clear = useCallback(() => setPending(null), []);
+
+  return { pending, undoing, offer, undo, clear };
 }

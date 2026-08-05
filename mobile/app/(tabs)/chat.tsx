@@ -23,8 +23,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { CapturePreviewCard } from "../../components/CapturePreviewCard";
 import { TypingDots } from "../../components/TypingDots";
+import { UndoBanner } from "../../components/UndoBanner";
 import { Fade, GlassCard, GradientBackdrop } from "../../components/ui";
-import { useCapture, useChat } from "../../lib/hooks";
+import { useCapture, useChat, useUndo } from "../../lib/hooks";
 import type { CaptureDraft } from "../../lib/types";
 import { useTheme } from "../../theme/ThemeProvider";
 
@@ -42,7 +43,8 @@ export default function ChatScreen() {
   const { proposal, parsing, saving, parse, confirm, discard } = useCapture();
   const { colors } = useTheme();
   const [text, setText] = useState("");
-  const [savedTitle, setSavedTitle] = useState<string | null>(null);
+  // A captured task is reversed by deleting it, so undo carries its id (10.3).
+  const { pending: undoOffer, undoing, offer, undo, clear: clearUndo } = useUndo();
 
   const submit = (value?: string) => {
     const msg = (value ?? text).trim();
@@ -55,13 +57,13 @@ export default function ChatScreen() {
     const msg = text.trim();
     if (!msg || parsing) return;
     setText("");
-    setSavedTitle(null);
+    clearUndo();
     void parse(msg);
   };
 
   const onConfirm = async (draft: CaptureDraft) => {
     const task = await confirm(draft);
-    if (task) setSavedTitle(task.title);
+    if (task) offer(`Added “${task.title}”.`, [], [task.id]);
   };
 
   return (
@@ -126,12 +128,13 @@ export default function ChatScreen() {
             )}
           </ScrollView>
 
-          {savedTitle !== null && proposal === null && (
-            <Pressable onPress={() => setSavedTitle(null)} className="mx-4 mb-2">
-              <Text className="text-caption text-text-dim">
-                ✓ Added &ldquo;{savedTitle}&rdquo; to your tasks.
-              </Text>
-            </Pressable>
+          {undoOffer !== null && proposal === null && (
+            <UndoBanner
+              label={undoOffer.label}
+              undoing={undoing}
+              onUndo={undo}
+              onDismiss={clearUndo}
+            />
           )}
 
           {proposal !== null && (

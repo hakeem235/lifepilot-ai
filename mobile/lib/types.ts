@@ -155,3 +155,16 @@ export interface DailyReview {
   calendar_connected: boolean;
   free_hours: number[];
 }
+
+/** Prior slot of a task an apply moved — the payload that makes it reversible. */
+export interface PreviousPlacement {
+  task_id: string;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+}
+
+export interface UndoResult {
+  restored: string[];
+  deleted: string[];
+  rejected: { task_id: string | null; reason: string }[];
+}

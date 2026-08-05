@@ -7,9 +7,15 @@
     GET  /api/planner/review/            → evening review, writes nothing
     POST /api/planner/review/apply/      → rolls confirmed slipped tasks forward
 
+    POST /api/planner/undo/              → reverses a previously applied change
+
 The split is the safety property: there is no endpoint that both asks the model
 for a plan and writes it. The user must come back with an explicit apply call
 carrying the placements they confirmed.
+
+Each view inherits from ProposalEndpoint or ApplyEndpoint (see gate.py, Issue
+10.3), which declares which side of that line it sits on. The gate audit walks
+this URLconf and holds every endpoint to its declaration.
 """
 
 from __future__ import annotations
@@ -17,13 +23,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from tasks.serializers import TaskSerializer
 
-from . import capture, review, services
+from . import capture, review, services, undo
+from .gate import ApplyEndpoint, ProposalEndpoint
 
 
 def _requested_day(request) -> date | None:
@@ -37,10 +42,9 @@ def _requested_day(request) -> date | None:
         return None
 
 
-class PlanDayView(APIView):
+class PlanDayView(ProposalEndpoint):
     """Propose a schedule. Read-only with respect to the user's tasks."""
 
-    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         day = _requested_day(request)
@@ -49,10 +53,9 @@ class PlanDayView(APIView):
         return Response(services.propose_day_plan(request.user, day))
 
 
-class PlanDayApplyView(APIView):
+class PlanDayApplyView(ApplyEndpoint):
     """Apply the confirmed placements. The only path that writes a proposed plan."""
 
-    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         day = _requested_day(request)
@@ -65,10 +68,9 @@ class PlanDayApplyView(APIView):
         return Response(result)
 
 
-class CaptureView(APIView):
+class CaptureView(ProposalEndpoint):
     """Parse free text into a task draft. Creates no Task (D10)."""
 
-    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         message = (request.data.get("message") or "").strip()
@@ -79,10 +81,9 @@ class CaptureView(APIView):
         return Response(capture.propose_capture(request.user, message))
 
 
-class CaptureApplyView(APIView):
+class CaptureApplyView(ApplyEndpoint):
     """Create the confirmed task. The only path in capture that writes."""
 
-    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         draft = request.data.get("draft")
@@ -92,10 +93,9 @@ class CaptureApplyView(APIView):
         return Response({"task": TaskSerializer(task).data, "warning": warning}, status=201)
 
 
-class DailyReviewView(APIView):
+class DailyReviewView(ProposalEndpoint):
     """The evening review for a day. Writes nothing (D10)."""
 
-    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         day = _requested_day(request)
@@ -104,7 +104,7 @@ class DailyReviewView(APIView):
         return Response(review.propose_review(request.user, day))
 
 
-class DailyReviewApplyView(APIView):
+class DailyReviewApplyView(ApplyEndpoint):
     """Roll the confirmed slipped tasks forward.
 
     Delegates to the same validated writer the auto-scheduler uses, so the
@@ -112,7 +112,6 @@ class DailyReviewApplyView(APIView):
     `previous`-state capture rather than reimplementing them.
     """
 
-    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         raw = request.data.get("reschedule_date") or request.data.get("date")
@@ -124,3 +123,19 @@ class DailyReviewApplyView(APIView):
         if not isinstance(moves, list):
             return Response({"detail": "moves must be a list."}, status=400)
         return Response(services.apply_day_plan(request.user, target, moves))
+
+
+class UndoView(ApplyEndpoint):
+    """Reverse a previously applied AI change.
+
+    A write, and gated as one — but the user has already confirmed the intent by
+    tapping undo, so there is no separate preview step.
+    """
+
+    def post(self, request):
+        result = undo.undo_apply(
+            request.user,
+            request.data.get("previous", []),
+            request.data.get("created_task_ids", []),
+        )
+        return Response(result)
