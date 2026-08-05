@@ -119,3 +119,23 @@ export interface PlanApplyResult {
   rejected: { task_id: string | null; reason: string }[];
   previous: { task_id: string; scheduled_date: string | null; scheduled_time: string | null }[];
 }
+
+/** A task drafted from free text, pending the user's confirmation (Issue 10.1). */
+export interface CaptureDraft {
+  title: string;
+  notes: string;
+  priority: Priority;
+  due_date: string | null;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+  source: string;
+  original_text: string;
+}
+
+export interface CaptureProposal {
+  kind: "capture";
+  generated_by: "ai" | "fallback";
+  draft: CaptureDraft | null;
+  understood: boolean;
+  slot_conflict: boolean;
+}

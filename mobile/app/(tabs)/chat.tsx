@@ -2,10 +2,15 @@
  * AI Chat — ChatGPT-style conversation wired to the live AI endpoint (real Claude
  * when a key is set, deterministic fallback otherwise). Typing indicator while the
  * reply is in flight, suggested prompt chips when empty, and voice/file/image input
- * controls (capture stubbed for MVP; the text path is fully live).
+ * controls (voice/image stubbed for MVP; the text path is fully live).
+ *
+ * The ＋ button turns whatever is typed into a task (Issue 10.1): the text is
+ * parsed server-side into a structured draft, shown here as a preview, and only
+ * becomes a real task once the user confirms it (D10).
  */
 import { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,9 +21,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CapturePreviewCard } from "../../components/CapturePreviewCard";
 import { TypingDots } from "../../components/TypingDots";
 import { Fade, GlassCard, GradientBackdrop } from "../../components/ui";
-import { useChat } from "../../lib/hooks";
+import { useCapture, useChat } from "../../lib/hooks";
+import type { CaptureDraft } from "../../lib/types";
 import { useTheme } from "../../theme/ThemeProvider";
 
 const SUGGESTIONS = [
@@ -32,14 +39,29 @@ const EMPTY_GREETING =
 
 export default function ChatScreen() {
   const { messages, sending, send } = useChat();
+  const { proposal, parsing, saving, parse, confirm, discard } = useCapture();
   const { colors } = useTheme();
   const [text, setText] = useState("");
+  const [savedTitle, setSavedTitle] = useState<string | null>(null);
 
   const submit = (value?: string) => {
     const msg = (value ?? text).trim();
     if (!msg || sending) return;
     setText("");
     void send(msg);
+  };
+
+  const capture = () => {
+    const msg = text.trim();
+    if (!msg || parsing) return;
+    setText("");
+    setSavedTitle(null);
+    void parse(msg);
+  };
+
+  const onConfirm = async (draft: CaptureDraft) => {
+    const task = await confirm(draft);
+    if (task) setSavedTitle(task.title);
   };
 
   return (
@@ -104,6 +126,23 @@ export default function ChatScreen() {
             )}
           </ScrollView>
 
+          {savedTitle !== null && proposal === null && (
+            <Pressable onPress={() => setSavedTitle(null)} className="mx-4 mb-2">
+              <Text className="text-caption text-text-dim">
+                ✓ Added &ldquo;{savedTitle}&rdquo; to your tasks.
+              </Text>
+            </Pressable>
+          )}
+
+          {proposal !== null && (
+            <CapturePreviewCard
+              proposal={proposal}
+              saving={saving}
+              onConfirm={onConfirm}
+              onDiscard={discard}
+            />
+          )}
+
           {/* Input row with voice/file/image controls */}
           <View className="border-t border-border/15 px-4 pb-3 pt-2">
             <View className="flex-row items-center gap-2">
@@ -128,6 +167,18 @@ export default function ChatScreen() {
                 onSubmitEditing={() => submit()}
                 returnKeyType="send"
               />
+              <Pressable
+                accessibilityLabel="Capture as task"
+                onPress={capture}
+                disabled={!text.trim() || parsing}
+                className="h-10 w-10 items-center justify-center rounded-full bg-primary/10 disabled:opacity-40"
+              >
+                {parsing ? (
+                  <ActivityIndicator size="small" color={colors.textDim} />
+                ) : (
+                  <Text className="text-body font-semibold text-primary">＋</Text>
+                )}
+              </Pressable>
               <Pressable
                 accessibilityLabel="Send"
                 onPress={() => submit()}

@@ -14,6 +14,8 @@ import type {
   AppNotification,
   Brief,
   CalendarDay,
+  CaptureDraft,
+  CaptureProposal,
   ChatMessage,
   Insights,
   PlanApplyResult,
@@ -427,4 +429,59 @@ export function usePlanDay(dateISO: string) {
   const dismiss = useCallback(() => setProposal(null), []);
 
   return { proposal, planning, applying, error, propose, apply, dismiss };
+}
+
+/**
+ * Natural-language capture (Issue 10.1) — parse free text, then create only what
+ * the user confirmed. Like usePlanDay, `parse` writes nothing: the draft lives
+ * here until `confirm` posts it back (D10). The user's edits travel with it.
+ */
+export function useCapture() {
+  const api = useApi();
+  const [proposal, setProposal] = useState<CaptureProposal | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const parse = useCallback(
+    async (message: string) => {
+      setParsing(true);
+      try {
+        const res = await api("/api/planner/capture/", {
+          method: "POST",
+          body: JSON.stringify({ message }),
+        });
+        setProposal(res.ok ? ((await res.json()) as CaptureProposal) : null);
+      } catch {
+        setProposal(null);
+      } finally {
+        setParsing(false);
+      }
+    },
+    [api],
+  );
+
+  const confirm = useCallback(
+    async (draft: CaptureDraft): Promise<Task | null> => {
+      setSaving(true);
+      try {
+        const res = await api("/api/planner/capture/apply/", {
+          method: "POST",
+          body: JSON.stringify({ draft }),
+        });
+        if (!res.ok) return null;
+        const body = (await res.json()) as { task: Task; warning: string | null };
+        setProposal(null);
+        return body.task;
+      } catch {
+        return null;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [api],
+  );
+
+  const discard = useCallback(() => setProposal(null), []);
+
+  return { proposal, parsing, saving, parse, confirm, discard };
 }
