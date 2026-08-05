@@ -11,7 +11,7 @@ Design (docs/ARCHITECTURE.md §3):
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from django.conf import settings
 
@@ -20,6 +20,29 @@ from django.conf import settings
 class AIResult:
     text: str
     generated_by: str  # "ai" | "fallback"
+
+
+@dataclass
+class Usage:
+    """Per-call token accounting (D12) — logged against the user by the caller."""
+
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+@dataclass
+class StructuredResult:
+    """Result of a structured tool-use call (D11).
+
+    `data` is the raw tool input the model produced — still UNTRUSTED. The caller
+    must validate every field against the user's own data before any write.
+    `data is None` means no usable model output; the caller falls back.
+    """
+
+    data: dict | None
+    generated_by: str  # "ai" | "fallback"
+    usage: Usage = field(default_factory=Usage)
 
 
 def _client():
@@ -124,3 +147,127 @@ def chat(message: str, ctx: dict, history: list[dict] | None = None) -> AIResult
     if text:
         return AIResult(text=text, generated_by="ai")
     return AIResult(text=_chat_fallback(message, ctx), generated_by="fallback")
+
+
+# --- Structured tool-use (D11) ---------------------------------------------------
+
+def _tool_call(
+    model: str,
+    system: str,
+    user: str,
+    tool: dict,
+    max_tokens: int = 1500,
+) -> StructuredResult:
+    """One Claude call forced through a tool schema; never raises.
+
+    The model cannot answer in prose here — `tool_choice` forces it to emit the
+    tool's input object, which is the only thing we read. That is the D11 seam:
+    a schema in, a schema out, and a server-side validator between the result and
+    any write. Any failure (no key, network, malformed) returns
+    `generated_by="fallback"` so the caller uses its deterministic path.
+    """
+    client = _client()
+    if client is None:
+        return StructuredResult(data=None, generated_by="fallback")
+    try:
+        resp = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            tools=[tool],
+            tool_choice={"type": "tool", "name": tool["name"]},
+            messages=[{"role": "user", "content": user}],
+        )
+    except Exception:
+        return StructuredResult(data=None, generated_by="fallback")
+
+    usage = Usage(
+        model=model,
+        input_tokens=getattr(resp.usage, "input_tokens", 0) or 0,
+        output_tokens=getattr(resp.usage, "output_tokens", 0) or 0,
+    )
+    for block in resp.content:
+        if getattr(block, "type", None) == "tool_use" and block.name == tool["name"]:
+            data = block.input
+            if isinstance(data, dict):
+                return StructuredResult(data=data, generated_by="ai", usage=usage)
+    # Well-formed response, no usable tool block — still bill the tokens we spent.
+    return StructuredResult(data=None, generated_by="fallback", usage=usage)
+
+
+PLAN_DAY_TOOL = {
+    "name": "propose_schedule",
+    "description": (
+        "Propose a schedule for the user's unscheduled tasks by placing each one "
+        "into a free hour of the day. Every task must either be assigned to a free "
+        "hour or listed as overflow with a short reason — never omitted."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "assignments": {
+                "type": "array",
+                "description": "Task placements. One task per hour; no hour used twice.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": {"type": "string", "description": "id of a task from the list"},
+                        "hour": {
+                            "type": "integer",
+                            "description": "24h clock hour, must be one of the free hours given",
+                        },
+                    },
+                    "required": ["task_id", "hour"],
+                },
+            },
+            "overflow": {
+                "type": "array",
+                "description": "Tasks that could not be placed, each with a short user-facing reason.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": {"type": "string"},
+                        "reason": {"type": "string", "description": "one short sentence"},
+                    },
+                    "required": ["task_id", "reason"],
+                },
+            },
+        },
+        "required": ["assignments", "overflow"],
+    },
+}
+
+
+def propose_schedule(ctx: dict) -> StructuredResult:
+    """Ask Claude to lay out the day (D13: the capable model does the reasoning).
+
+    `ctx` is a compact bundle for TODAY only (D12) — the candidate tasks, the free
+    hours, and the immovable calendar events. The returned data is unvalidated;
+    planner.services is responsible for checking it before anything is written.
+    """
+    system = (
+        "You are LifePilot's day planner. You place the user's unscheduled tasks "
+        "into free hours of a single day.\n"
+        "Hard rules:\n"
+        "- You may ONLY use hours listed as free. Calendar events are immovable and "
+        "their hours are already excluded — never schedule over one.\n"
+        "- At most ONE task per hour. Never double-book.\n"
+        "- Schedule the most important work first: urgent+important, then important, "
+        "then urgent, then the rest. Respect due dates.\n"
+        "- Every task must appear exactly once, in assignments or in overflow. If "
+        "there are fewer free hours than tasks, the least important ones overflow.\n"
+        "- Prefer earlier hours for demanding work."
+    )
+    lines = [f"Planning date: {ctx['date']}.", "", "Unscheduled tasks:"]
+    for task in ctx["candidates"]:
+        due = task["due_date"] or "no due date"
+        lines.append(
+            f"- id={task['task_id']} | {task['title']} | priority={task['priority']} | due={due}"
+        )
+    lines.append("")
+    lines.append(f"Free hours (24h): {', '.join(str(h) for h in ctx['free_hours']) or 'none'}")
+    if ctx.get("events"):
+        lines.append("Immovable calendar events (already excluded from free hours):")
+        for event in ctx["events"]:
+            lines.append(f"- {event}")
+    return _tool_call(settings.ANTHROPIC_MODEL_PLAN, system, "\n".join(lines), PLAN_DAY_TOOL)
