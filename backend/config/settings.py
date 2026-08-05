@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "routines",
     "gcal",
     "notifications",
+    "planner",
 ]
 
 MIDDLEWARE = [
@@ -179,6 +180,9 @@ CLERK_ISSUER = os.environ.get("CLERK_ISSUER", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL_CHAT = os.environ.get("ANTHROPIC_MODEL_CHAT", "claude-opus-4-8")
 ANTHROPIC_MODEL_SUMMARY = os.environ.get("ANTHROPIC_MODEL_SUMMARY", "claude-haiku-4-5-20251001")
+# D13: day-plan reasoning (Issue 10.0) and the daily review (10.2) run on the
+# capable model; bounded structured extraction (10.1 capture) runs on the cheap one.
+ANTHROPIC_MODEL_PLAN = os.environ.get("ANTHROPIC_MODEL_PLAN", "claude-opus-4-8")
 # Google Calendar (read-only overlay) — server-side OAuth, wired in Issue 9.3.
 # Unset by default: the API degrades gracefully to connected:false with no creds.
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")

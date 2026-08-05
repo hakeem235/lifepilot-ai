@@ -13,7 +13,14 @@
  */
 import type BottomSheet from "@gorhom/bottom-sheet";
 import { useCallback, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View, type View as RNView } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  type View as RNView,
+} from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   measure,
@@ -27,12 +34,13 @@ import Animated, {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { NotificationsSheet } from "../../components/NotificationsSheet";
+import { PlanPreviewSheet } from "../../components/PlanPreviewSheet";
 import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
 import { shiftISODate, todayISO } from "../../lib/date";
-import { useCalendar, useNotifications, usePlanner, useTasks } from "../../lib/hooks";
-import type { Priority, Task } from "../../lib/types";
+import { useCalendar, useNotifications, usePlanDay, usePlanner, useTasks } from "../../lib/hooks";
+import type { PlanAssignment, Priority, Task } from "../../lib/types";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM … 9 PM
 const SLOT_H = 64;
@@ -122,6 +130,31 @@ export default function PlannerScreen() {
   const { notifications, unread, markRead, markAllRead } = useNotifications();
   const templatesRef = useRef<BottomSheet>(null);
   const notificationsRef = useRef<BottomSheet>(null);
+  const planRef = useRef<BottomSheet>(null);
+
+  // "Plan my day" (Issue 10.0). The proposal is held here, unapplied, until the
+  // user confirms in the sheet — no AI write reaches a task before that (D10).
+  const { proposal, planning, applying, propose, apply, dismiss } = usePlanDay(dateISO);
+
+  const onPlanMyDay = useCallback(async () => {
+    await propose();
+    planRef.current?.expand();
+  }, [propose]);
+
+  const onConfirmPlan = useCallback(
+    async (assignments: PlanAssignment[]) => {
+      await apply(assignments);
+      planRef.current?.close();
+      dismiss();
+      await refresh();
+    },
+    [apply, dismiss, refresh],
+  );
+
+  const onRejectPlan = useCallback(() => {
+    planRef.current?.close();
+    dismiss();
+  }, [dismiss]);
 
   const eventsAt = (hour: number) =>
     calendar.events.filter((e) => e.start && new Date(e.start).getHours() === hour);
@@ -246,6 +279,18 @@ export default function PlannerScreen() {
               )}
             </Pressable>
             <Pressable
+              onPress={onPlanMyDay}
+              disabled={planning}
+              accessibilityLabel="Plan my day"
+              className="flex-row items-center gap-1 rounded-chip bg-primary px-3 py-2 active:opacity-80"
+            >
+              {planning ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text className="text-caption font-semibold text-white">✨ Plan my day</Text>
+              )}
+            </Pressable>
+            <Pressable
               onPress={() => templatesRef.current?.expand()}
               className="flex-row items-center gap-1 rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
             >
@@ -352,6 +397,13 @@ export default function PlannerScreen() {
         </Animated.View>
       )}
 
+      <PlanPreviewSheet
+        ref={planRef}
+        proposal={proposal}
+        applying={applying}
+        onConfirm={onConfirmPlan}
+        onReject={onRejectPlan}
+      />
       <TemplatesSheet ref={templatesRef} dateISO={dateISO} onApplied={refresh} />
       <NotificationsSheet
         ref={notificationsRef}

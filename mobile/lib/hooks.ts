@@ -16,6 +16,9 @@ import type {
   CalendarDay,
   ChatMessage,
   Insights,
+  PlanApplyResult,
+  PlanAssignment,
+  PlanProposal,
   Priority,
   Task,
   TaskTemplate,
@@ -360,4 +363,68 @@ export function useInsights() {
   }, [api]);
 
   return { insights, loading };
+}
+
+/**
+ * "Plan my day" (Issue 10.0) — propose, then apply what the user confirmed.
+ *
+ * `propose` never changes anything: it returns a preview the UI renders for
+ * confirmation. `apply` sends back only the placements the user kept, and the
+ * server re-validates every one of them before writing (D10).
+ */
+export function usePlanDay(dateISO: string) {
+  const api = useApi();
+  const [proposal, setProposal] = useState<PlanProposal | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const propose = useCallback(async () => {
+    setPlanning(true);
+    setError(null);
+    try {
+      const res = await api("/api/planner/plan-day/", {
+        method: "POST",
+        body: JSON.stringify({ date: dateISO }),
+      });
+      if (!res.ok) {
+        setError("Couldn't build a plan right now.");
+        return;
+      }
+      setProposal((await res.json()) as PlanProposal);
+    } catch {
+      setError("Couldn't reach the planner.");
+    } finally {
+      setPlanning(false);
+    }
+  }, [api, dateISO]);
+
+  const apply = useCallback(
+    async (assignments: PlanAssignment[]): Promise<PlanApplyResult | null> => {
+      setApplying(true);
+      try {
+        const res = await api("/api/planner/plan-day/apply/", {
+          method: "POST",
+          body: JSON.stringify({
+            date: dateISO,
+            assignments: assignments.map((a) => ({
+              task_id: a.task_id,
+              scheduled_time: a.scheduled_time,
+            })),
+          }),
+        });
+        if (!res.ok) return null;
+        return (await res.json()) as PlanApplyResult;
+      } catch {
+        return null;
+      } finally {
+        setApplying(false);
+      }
+    },
+    [api, dateISO],
+  );
+
+  const dismiss = useCallback(() => setProposal(null), []);
+
+  return { proposal, planning, applying, error, propose, apply, dismiss };
 }
