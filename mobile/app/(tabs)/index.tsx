@@ -66,7 +66,10 @@ export default function HomeScreen() {
     <GradientBackdrop>
       <SafeAreaView edges={["top"]} className="flex-1">
         <ScrollView
-          contentContainerClassName="px-5 pb-28 pt-2"
+          // pb clears the floating orb (bottom-24 + a 48pt halo box = 144pt),
+          // so the last row can always scroll out from under it. pb-28 left the
+          // "See all" link sitting behind the orb at rest.
+          contentContainerClassName="px-5 pb-44 pt-2"
           showsVerticalScrollIndicator={false}
         >
           <FadeInUp>
