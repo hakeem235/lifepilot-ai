@@ -1,15 +1,18 @@
 /**
- * Profile — identity, connected accounts, preferences (dark mode + notification/AI
- * toggles), and sign out. Dark mode drives ThemeProvider live; connected accounts
- * are labeled previews until the P2 OAuth integrations land.
+ * Profile — identity, connected accounts, the commute start address (feeds the
+ * home screen's Traffic tile), preferences (dark mode + notification/AI toggles),
+ * and sign out. Dark mode drives ThemeProvider live; connected accounts are
+ * labeled previews until the P2 OAuth integrations land.
  */
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
-import { Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { FadeInUp, GlassCard, GradientBackdrop } from "../../components/ui";
+import { useCommuteOrigin } from "../../lib/hooks";
+import { originStatus } from "../../lib/traffic";
 import { useTheme } from "../../theme/ThemeProvider";
 
 const ACCOUNTS = [
@@ -28,11 +31,29 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export default function ProfileScreen() {
-  const { name, toggle } = useTheme();
+  const { name, colors, toggle } = useTheme();
   const { signOut } = useAuth();
   const { user } = useUser();
   const [notifications, setNotifications] = useState(true);
   const [proactiveAI, setProactiveAI] = useState(true);
+  const {
+    origin,
+    loading: originLoading,
+    saving,
+    saved,
+    save,
+  } = useCommuteOrigin();
+  // `null` means "untouched" — the field shows the saved address. Once the user
+  // types, the draft takes over. Derived rather than synced in an effect, so a
+  // slow GET can never overwrite what someone is mid-way through typing.
+  const [draft, setDraft] = useState<string | null>(null);
+  const dirty = draft !== null && draft !== origin;
+  const originDraft = draft ?? origin;
+
+  const saveOrigin = async () => {
+    if (!dirty || saving) return;
+    if (await save(originDraft)) setDraft(null);
+  };
 
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
   const initial = (user?.firstName ?? email ?? "?").slice(0, 1).toUpperCase();
@@ -91,6 +112,53 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               ))}
+            </GlassCard>
+          </FadeInUp>
+
+          {/* Commute origin — feeds the home screen's Traffic tile */}
+          <FadeInUp delay={150} className="mt-4">
+            <Text className="mb-2 text-caption font-semibold uppercase text-text-dim">
+              Commute
+            </Text>
+            <GlassCard>
+              <Text className="text-body text-text">Start address</Text>
+              <Text className="mt-0.5 text-caption text-text-dim">
+                Where your trips start. Used to estimate drive time to your next meeting.
+              </Text>
+              <TextInput
+                placeholder="e.g. King Fahd Rd, Riyadh"
+                placeholderTextColor={colors.textDim}
+                value={originDraft}
+                onChangeText={setDraft}
+                onSubmitEditing={saveOrigin}
+                editable={!originLoading}
+                returnKeyType="done"
+                autoCapitalize="words"
+                accessibilityLabel="Commute start address"
+                className="mt-3 rounded-card border border-border/20 bg-bg px-4 py-3 text-body text-text"
+              />
+              <View className="mt-3 flex-row items-center justify-between">
+                <Text className="flex-1 text-caption text-text-dim">
+                  {originStatus({ loading: originLoading, saving, saved, dirty, origin })}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Save commute start address"
+                  disabled={!dirty || saving}
+                  onPress={saveOrigin}
+                  className={`rounded-chip px-4 py-2 ${
+                    !dirty || saving ? "bg-primary/10" : "bg-primary active:opacity-80"
+                  }`}
+                >
+                  <Text
+                    className={`text-caption font-semibold ${
+                      !dirty || saving ? "text-primary/50" : "text-white"
+                    }`}
+                  >
+                    Save
+                  </Text>
+                </Pressable>
+              </View>
             </GlassCard>
           </FadeInUp>
 

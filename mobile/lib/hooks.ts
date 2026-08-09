@@ -17,7 +17,6 @@ import type {
   CalendarDay,
   CaptureDraft,
   CaptureProposal,
-  ChatMessage,
   Commute,
   DailyReview,
   Insights,
@@ -372,46 +371,56 @@ export function useCommute() {
   return { commute, loading };
 }
 
-export function useChat() {
+/**
+ * The address commutes are measured from, edited on the Profile screen.
+ * `saved` drives the "Saved" confirmation — without it the user has no signal
+ * that a free-text field with no submit button actually persisted.
+ */
+export function useCommuteOrigin() {
   const api = useApi();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sending, setSending] = useState(false);
+  const [origin, setOrigin] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const res = await api("/api/ai/chat/");
-      if (alive && res.ok) setMessages(await res.json());
+      try {
+        const res = await api("/api/traffic/origin/");
+        if (alive && res.ok) setOrigin((await res.json()).origin ?? "");
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     return () => {
       alive = false;
     };
   }, [api]);
 
-  const send = useCallback(
-    async (message: string) => {
-      setMessages((m) => [...m, { role: "user", content: message }]);
-      setSending(true);
+  const save = useCallback(
+    async (address: string): Promise<boolean> => {
+      setSaving(true);
+      setSaved(false);
       try {
-        const res = await api("/api/ai/chat/", {
-          method: "POST",
-          body: JSON.stringify({ message }),
+        const res = await api("/api/traffic/origin/", {
+          method: "PUT",
+          body: JSON.stringify({ origin: address }),
         });
-        const data = await res.json();
-        setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+        if (!res.ok) return false;
+        setOrigin((await res.json()).origin ?? "");
+        setSaved(true);
+        return true;
       } catch {
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: "I couldn't reach the server. Try again." },
-        ]);
+        return false;
       } finally {
-        setSending(false);
+        setSaving(false);
       }
     },
     [api],
   );
 
-  return { messages, sending, send };
+  return { origin, setOrigin, loading, saving, saved, save };
 }
 
 export function useInsights() {

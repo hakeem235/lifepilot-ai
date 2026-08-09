@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describeCommute, formatLeaveBy } from "./traffic";
+import { describeCommute, formatLeaveBy, originStatus } from "./traffic";
 import type { Commute } from "./types";
 
 const LIVE: Commute = {
@@ -74,5 +74,29 @@ describe("describeCommute", () => {
     const tile = describeCommute({ available: false, reason: "lookup_failed" }, false);
     expect(tile.live).toBe(false);
     expect(tile.value).toBe("—");
+  });
+});
+
+describe("originStatus", () => {
+  const base = { loading: false, saving: false, saved: false, dirty: false, origin: "" };
+
+  it("prompts when no address is set", () => {
+    expect(originStatus(base)).toBe("Set an address to enable the Traffic tile");
+  });
+
+  it("confirms the tile is using a saved address", () => {
+    expect(originStatus({ ...base, origin: "Riyadh" })).toBe(
+      "Traffic tile is using this address",
+    );
+  });
+
+  it("reports in-flight states ahead of everything else", () => {
+    expect(originStatus({ ...base, loading: true, dirty: true })).toBe("Loading…");
+    expect(originStatus({ ...base, saving: true, dirty: true })).toBe("Saving…");
+  });
+
+  it("never leaves a stale 'Saved' under freshly edited text", () => {
+    expect(originStatus({ ...base, saved: true, dirty: true })).toBe("Unsaved changes");
+    expect(originStatus({ ...base, saved: true, dirty: false })).toBe("Saved");
   });
 });

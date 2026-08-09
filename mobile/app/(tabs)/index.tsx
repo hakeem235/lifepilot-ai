@@ -2,15 +2,19 @@
  * Home dashboard — personalized greeting, the gradient AI Daily Brief (real task
  * counts + AI/fallback summary), a tile row (live weather via Open-Meteo and a
  * live commute estimate via Mapbox; meetings/email still sample), quick actions,
- * AI suggestions, and a live preview of today's open tasks. Floating AI orb
+ * AI suggestions, and a live preview of today's open tasks. The ＋ Add Task
+ * quick action opens natural-language capture (Issue 10.1). Floating AI orb
  * bottom-right.
  */
+import BottomSheet from "@gorhom/bottom-sheet";
 import { useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useRef } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CaptureSheet } from "../../components/CaptureSheet";
 import {
   AiOrb,
   Badge,
@@ -44,6 +48,7 @@ export default function HomeScreen() {
   const { weather, loading: weatherLoading, error: weatherError } = useWeather();
   const { commute, loading: commuteLoading } = useCommute();
   const commuteTile = describeCommute(commute, commuteLoading);
+  const captureRef = useRef<BottomSheet>(null);
   const name = user?.firstName ?? "";
 
   return (
@@ -147,7 +152,7 @@ export default function HomeScreen() {
           <FadeInUp delay={200} className="mt-5">
             <Text className="mb-2 text-body font-semibold text-text">Quick actions</Text>
             <View className="flex-row flex-wrap gap-2">
-              <Chip label="＋ Add Task" />
+              <Chip label="＋ Add Task" onPress={() => captureRef.current?.expand()} />
               <Chip label="📝 New Note" />
               <Chip label="🎙 Voice" />
               <Chip label="📷 Scan" />
@@ -205,6 +210,9 @@ export default function HomeScreen() {
         <View className="absolute bottom-24 right-4">
           <AiOrb size={30} />
         </View>
+
+        {/* Natural-language capture (Issue 10.1), opened by the ＋ Add Task chip */}
+        <CaptureSheet ref={captureRef} />
       </SafeAreaView>
     </GradientBackdrop>
   );

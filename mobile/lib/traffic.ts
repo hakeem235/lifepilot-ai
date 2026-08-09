@@ -47,6 +47,30 @@ export function formatLeaveBy(iso: string | null): string | null {
   return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * Status line under the Profile screen's start-address field.
+ *
+ * A free-text field that saves over the network needs to say which of five
+ * states it is in, or the user cannot tell a typo from a saved address. Order
+ * matters: in-flight states outrank dirty, and dirty outranks "Saved" so a
+ * stale confirmation never sits under freshly edited text.
+ */
+export function originStatus(state: {
+  loading: boolean;
+  saving: boolean;
+  saved: boolean;
+  dirty: boolean;
+  origin: string;
+}): string {
+  if (state.loading) return "Loading…";
+  if (state.saving) return "Saving…";
+  if (state.dirty) return "Unsaved changes";
+  if (state.saved) return "Saved";
+  return state.origin
+    ? "Traffic tile is using this address"
+    : "Set an address to enable the Traffic tile";
+}
+
 export function describeCommute(
   commute: Commute | null,
   loading: boolean,

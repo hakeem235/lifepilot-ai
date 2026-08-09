@@ -92,10 +92,6 @@ export interface Brief {
   high_priority: number;
 }
 
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
 
 export interface Insights {
   productivity_score: number;
