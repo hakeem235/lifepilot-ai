@@ -12,7 +12,8 @@
  * never clipped while crossing between the tray and timeline scroll containers.
  */
 import type BottomSheet from "@gorhom/bottom-sheet";
-import { useCallback, useRef, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -40,6 +41,7 @@ import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { UndoBanner } from "../../components/UndoBanner";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
+import { parseAiAction } from "../../lib/aiActions";
 import { shiftISODate, todayISO } from "../../lib/date";
 import {
   useCalendar,
@@ -196,6 +198,19 @@ export default function PlannerScreen() {
     reviewRef.current?.expand();
     void loadReview();
   }, [loadReview]);
+
+  // Deep link from the home screen's AI orb: ?action=plan|review opens that
+  // flow once on arrival. Guarded by a ref so re-renders (or a back-navigation
+  // that keeps the param) cannot fire an AI call a second time.
+  const { action } = useLocalSearchParams<{ action?: string }>();
+  const handledAction = useRef<string | null>(null);
+  useEffect(() => {
+    const requested = parseAiAction(action);
+    if (!requested || handledAction.current === requested) return;
+    handledAction.current = requested;
+    if (requested === "plan") void onPlanMyDay();
+    if (requested === "review") onOpenReview();
+  }, [action, onPlanMyDay, onOpenReview]);
 
   const onConfirmReview = useCallback(
     async (moves: PlanAssignment[]) => {

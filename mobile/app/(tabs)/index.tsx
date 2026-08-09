@@ -14,6 +14,7 @@ import { useRef } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AiActionMenu } from "../../components/AiActionMenu";
 import { CaptureSheet } from "../../components/CaptureSheet";
 import {
   AiOrb,
@@ -25,6 +26,7 @@ import {
   GradientBackdrop,
 } from "../../components/ui";
 import { useBrief, useCommute, useTasks, useWeather } from "../../lib/hooks";
+import { type AiActionId, routeForAction } from "../../lib/aiActions";
 import { describeCommute } from "../../lib/traffic";
 
 function greeting(): string {
@@ -49,6 +51,15 @@ export default function HomeScreen() {
   const { commute, loading: commuteLoading } = useCommute();
   const commuteTile = describeCommute(commute, commuteLoading);
   const captureRef = useRef<BottomSheet>(null);
+  const aiMenuRef = useRef<BottomSheet>(null);
+
+  const onAiAction = (id: AiActionId) => {
+    aiMenuRef.current?.close();
+    const route = routeForAction(id);
+    if (route) router.push(route);
+    else captureRef.current?.expand();
+  };
+
   const name = user?.firstName ?? "";
 
   return (
@@ -206,10 +217,12 @@ export default function HomeScreen() {
           </FadeInUp>
         </ScrollView>
 
-        {/* Floating AI orb */}
+        {/* Floating AI orb — opens the AI action menu */}
         <View className="absolute bottom-24 right-4">
-          <AiOrb size={30} />
+          <AiOrb size={30} onPress={() => aiMenuRef.current?.expand()} />
         </View>
+
+        <AiActionMenu ref={aiMenuRef} onSelect={onAiAction} />
 
         {/* Natural-language capture (Issue 10.1), opened by the ＋ Add Task chip */}
         <CaptureSheet ref={captureRef} />
