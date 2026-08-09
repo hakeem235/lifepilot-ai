@@ -38,7 +38,34 @@ export interface CalendarEvent {
   all_day: boolean;
   start: string | null;
   end: string | null;
+  /** Free-text venue as typed in Google Calendar; "" for most events. */
+  location: string;
 }
+
+/** Drive estimate to the next located event, or why there isn't one. */
+export type Commute =
+  | {
+      available: true;
+      event_title: string;
+      destination: string;
+      duration_minutes: number;
+      leave_by: string | null;
+      event_start: string | null;
+      level: "light" | "moderate" | "heavy" | "unknown";
+      distance_km: number;
+    }
+  | { available: false; reason: CommuteReason };
+
+export type CommuteReason =
+  | "not_configured"
+  | "no_origin"
+  | "calendar_not_connected"
+  | "no_upcoming_event_with_location"
+  | "origin_not_found"
+  | "destination_not_found"
+  | "lookup_failed"
+  | "no_route"
+  | "destination_too_far";
 
 export interface CalendarDay {
   connected: boolean;
@@ -66,10 +93,6 @@ export interface Brief {
   high_priority: number;
 }
 
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
 
 export interface Insights {
   productivity_score: number;
@@ -167,4 +190,16 @@ export interface UndoResult {
   restored: string[];
   deleted: string[];
   rejected: { task_id: string | null; reason: string }[];
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  /** Server-derived: the real title, else the body's first line. */
+  display_title: string;
+  pinned: boolean;
+  source: "manual" | "ai";
+  created_at: string;
+  updated_at: string;
 }

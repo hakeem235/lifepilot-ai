@@ -59,6 +59,22 @@ class PureHelperTests(APITestCase):
         )
         self.assertTrue(allday["all_day"])
 
+    def test_map_event_carries_location_for_the_commute_estimate(self):
+        located = google.map_event(
+            {"id": "3", "summary": "Client review", "location": "  Kingdom Centre, Riyadh  ",
+             "start": {"dateTime": "2026-08-05T13:00:00Z"},
+             "end": {"dateTime": "2026-08-05T14:00:00Z"}}
+        )
+        self.assertEqual(located["location"], "Kingdom Centre, Riyadh")
+
+        # Most events have no venue; that must be an empty string, not None,
+        # so the traffic selector can skip it with a plain falsiness check.
+        bare = google.map_event(
+            {"id": "4", "summary": "Focus", "start": {"dateTime": "2026-08-05T15:00:00Z"},
+             "end": {"dateTime": "2026-08-05T16:00:00Z"}}
+        )
+        self.assertEqual(bare["location"], "")
+
     @override_settings(**CONFIGURED)
     def test_build_auth_url_requests_readonly_scope_and_pkce(self):
         url = google.build_auth_url("state123", "challenge123")

@@ -8,7 +8,7 @@
  * Reuses the plan-preview logic so "skip this one" behaves identically to the
  * auto-scheduler's preview — one mental model for both AI surfaces.
  */
-import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
@@ -16,9 +16,10 @@ import { Badge, ProgressBar } from "./ui";
 import { describeTime } from "../lib/capture";
 import { keptAssignments } from "../lib/planPreview";
 import type { DailyReview, PlanAssignment } from "../lib/types";
+import { useTheme } from "../theme/ThemeProvider";
 
 export const DailyReviewSheet = forwardRef<
-  BottomSheet,
+  BottomSheetModal,
   {
     review: DailyReview | null;
     loading: boolean;
@@ -28,6 +29,8 @@ export const DailyReviewSheet = forwardRef<
   }
 >(function DailyReviewSheet({ review, loading, applying, onConfirm, onClose }, ref) {
   const [dropped, setDropped] = useState<Record<string, boolean>>({});
+
+  const { colors } = useTheme();
 
   const renderBackdrop = useCallback(
     (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
@@ -42,16 +45,17 @@ export const DailyReviewSheet = forwardRef<
   );
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={ref}
-      index={-1}
       snapPoints={["70%"]}
       enablePanDownToClose
-      onClose={() => {
+      onDismiss={() => {
         setDropped({});
         onClose();
       }}
       backdropComponent={renderBackdrop}
+      backgroundStyle={{ backgroundColor: colors.card }}
+      handleIndicatorStyle={{ backgroundColor: colors.textDim }}
     >
       <BottomSheetScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
         {loading || !review ? (
@@ -163,6 +167,6 @@ export const DailyReviewSheet = forwardRef<
           </>
         )}
       </BottomSheetScrollView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 });

@@ -9,7 +9,7 @@
  * Overflow tasks are shown, not hidden: they stay in the tray with the reason the
  * planner gave (D15).
  */
-import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
@@ -26,7 +26,7 @@ function hourLabel(time: string): string {
 }
 
 export const PlanPreviewSheet = forwardRef<
-  BottomSheet,
+  BottomSheetModal,
   {
     proposal: PlanProposal | null;
     applying: boolean;
@@ -68,12 +68,11 @@ export const PlanPreviewSheet = forwardRef<
   };
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={ref}
-      index={-1}
       snapPoints={["75%"]}
       enablePanDownToClose
-      onClose={reset}
+      onDismiss={reset}
       backdropComponent={renderBackdrop}
       backgroundStyle={{ backgroundColor: colors.card }}
       handleIndicatorStyle={{ backgroundColor: colors.textDim }}
@@ -199,6 +198,6 @@ export const PlanPreviewSheet = forwardRef<
           </Pressable>
         </View>
       </BottomSheetScrollView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 });

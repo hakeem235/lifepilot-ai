@@ -128,4 +128,7 @@ def map_event(raw: dict) -> dict:
         "all_day": all_day,
         "start": start.get("dateTime") or start.get("date"),
         "end": end.get("dateTime") or end.get("date"),
+        # Free-text venue string as the user typed it. Empty for most events;
+        # the traffic commute estimate is the only consumer and it skips blanks.
+        "location": (raw.get("location") or "").strip(),
     }

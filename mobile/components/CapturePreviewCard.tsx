@@ -1,7 +1,7 @@
 /**
  * CapturePreviewCard — the confirm gate for natural-language capture (Issue 10.1, D10).
  *
- * Sits above the chat input holding a drafted task. The title stays editable, so
+ * Sits above the capture input holding a drafted task. The title stays editable, so
  * a near-miss is a one-tap fix rather than a retype, and the date/time read back
  * in words ("Tomorrow · 2:00 PM") so the user can see what was understood before
  * agreeing to it. No task exists until "Add task".

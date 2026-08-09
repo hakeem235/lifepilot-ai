@@ -10,15 +10,17 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 
 import { getPushToken, pushPlatform } from "./notifications";
+import { fetchWeather, resolveCity, type WeatherSnapshot } from "./weather";
 import type {
   AppNotification,
   Brief,
   CalendarDay,
   CaptureDraft,
   CaptureProposal,
-  ChatMessage,
+  Commute,
   DailyReview,
   Insights,
+  Note,
   PlanApplyResult,
   PlanAssignment,
   PlanProposal,
@@ -304,46 +306,186 @@ export function useBrief() {
   return { brief, loading };
 }
 
-export function useChat() {
-  const api = useApi();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sending, setSending] = useState(false);
+/**
+ * Live weather for the home tile, from Open-Meteo (keyless, public — so it does
+ * not go through useApi/the Clerk JWT; there is nothing to authenticate).
+ * Exposes `error` so the tile can say it is unavailable rather than showing a
+ * stale or invented number.
+ */
+export function useWeather() {
+  const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const city = resolveCity(
+    process.env.EXPO_PUBLIC_WEATHER_CITY,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const res = await api("/api/ai/chat/");
-      if (alive && res.ok) setMessages(await res.json());
+      try {
+        const snapshot = await fetchWeather(city);
+        if (alive) setWeather(snapshot);
+      } catch (e) {
+        if (alive) setError(e instanceof Error ? e.message : "Weather unavailable");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [city]);
+
+  return { weather, loading, error };
+}
+
+/**
+ * Drive estimate to the next located calendar event. Unlike weather this goes
+ * through the backend — the Mapbox token is server-side only, so the client
+ * never holds a credential.
+ */
+export function useCommute() {
+  const api = useApi();
+  const [commute, setCommute] = useState<Commute | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api("/api/traffic/next-commute/");
+        if (alive && res.ok) setCommute(await res.json());
+      } catch {
+        // Leave commute null; the tile renders "Unavailable" rather than a number.
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     return () => {
       alive = false;
     };
   }, [api]);
 
-  const send = useCallback(
-    async (message: string) => {
-      setMessages((m) => [...m, { role: "user", content: message }]);
-      setSending(true);
+  return { commute, loading };
+}
+
+/**
+ * The address commutes are measured from, edited on the Profile screen.
+ * `saved` drives the "Saved" confirmation — without it the user has no signal
+ * that a free-text field with no submit button actually persisted.
+ */
+/**
+ * Notes (user-scoped CRUD). `save` handles both create and update so the sheet
+ * does not need to know which it is doing; the caller passes an id or not.
+ */
+export function useNotes() {
+  const api = useApi();
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api("/api/notes/");
+      if (res.ok) setNotes(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const save = useCallback(
+    async (input: { id?: string; title: string; body: string }): Promise<boolean> => {
+      setSaving(true);
       try {
-        const res = await api("/api/ai/chat/", {
-          method: "POST",
-          body: JSON.stringify({ message }),
+        const path = input.id ? `/api/notes/${input.id}/` : "/api/notes/";
+        const res = await api(path, {
+          method: input.id ? "PATCH" : "POST",
+          body: JSON.stringify({ title: input.title, body: input.body }),
         });
-        const data = await res.json();
-        setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+        if (!res.ok) return false;
+        await refresh();
+        return true;
       } catch {
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: "I couldn't reach the server. Try again." },
-        ]);
+        return false;
       } finally {
-        setSending(false);
+        setSaving(false);
+      }
+    },
+    [api, refresh],
+  );
+
+  const remove = useCallback(
+    async (id: string): Promise<boolean> => {
+      const res = await api(`/api/notes/${id}/`, { method: "DELETE" });
+      await refresh();
+      return res.ok;
+    },
+    [api, refresh],
+  );
+
+  const togglePin = useCallback(
+    async (id: string, pinned: boolean) => {
+      await api(`/api/notes/${id}/`, { method: "PATCH", body: JSON.stringify({ pinned }) });
+      await refresh();
+    },
+    [api, refresh],
+  );
+
+  return { notes, loading, saving, refresh, save, remove, togglePin };
+}
+
+export function useCommuteOrigin() {
+  const api = useApi();
+  const [origin, setOrigin] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api("/api/traffic/origin/");
+        if (alive && res.ok) setOrigin((await res.json()).origin ?? "");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [api]);
+
+  const save = useCallback(
+    async (address: string): Promise<boolean> => {
+      setSaving(true);
+      setSaved(false);
+      try {
+        const res = await api("/api/traffic/origin/", {
+          method: "PUT",
+          body: JSON.stringify({ origin: address }),
+        });
+        if (!res.ok) return false;
+        setOrigin((await res.json()).origin ?? "");
+        setSaved(true);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        setSaving(false);
       }
     },
     [api],
   );
 
-  return { messages, sending, send };
+  return { origin, setOrigin, loading, saving, saved, save };
 }
 
 export function useInsights() {

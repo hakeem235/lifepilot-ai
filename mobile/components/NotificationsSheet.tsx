@@ -3,7 +3,7 @@
  * created by the backend scheduled job, shows read/unread state, and lets the
  * user mark one or all as read (clearing the badge).
  */
-import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback } from "react";
 import { Pressable, Text, View } from "react-native";
 
@@ -11,7 +11,7 @@ import type { AppNotification } from "../lib/types";
 import { useTheme } from "../theme/ThemeProvider";
 
 export const NotificationsSheet = forwardRef<
-  BottomSheet,
+  BottomSheetModal,
   {
     notifications: AppNotification[];
     onMarkRead: (id: string) => void;
@@ -28,9 +28,8 @@ export const NotificationsSheet = forwardRef<
   );
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={ref}
-      index={-1}
       snapPoints={["55%"]}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
@@ -71,6 +70,6 @@ export const NotificationsSheet = forwardRef<
           ))
         )}
       </BottomSheetScrollView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 });

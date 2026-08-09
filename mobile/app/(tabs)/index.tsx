@@ -1,15 +1,22 @@
 /**
  * Home dashboard — personalized greeting, the gradient AI Daily Brief (real task
- * counts + AI/fallback summary), a tile row (meetings/email/weather/traffic —
- * labeled sample where not yet wired), quick actions, AI suggestions, and a live
- * preview of today's open tasks. Floating AI orb bottom-right.
+ * counts + AI/fallback summary), a tile row (live weather via Open-Meteo and a
+ * live commute estimate via Mapbox; meetings/email still sample), quick actions,
+ * AI suggestions, and a live preview of today's open tasks. The ＋ Add Task
+ * quick action opens natural-language capture (Issue 10.1). Floating AI orb
+ * bottom-right.
  */
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AiActionMenu } from "../../components/AiActionMenu";
+import { CaptureSheet } from "../../components/CaptureSheet";
+import { NoteSheet } from "../../components/NoteSheet";
 import {
   AiOrb,
   Badge,
@@ -19,7 +26,10 @@ import {
   GlassCard,
   GradientBackdrop,
 } from "../../components/ui";
-import { useBrief, useTasks } from "../../lib/hooks";
+import { useBrief, useCommute, useNotes, useTasks, useWeather } from "../../lib/hooks";
+import { type AiActionId, routeForAction } from "../../lib/aiActions";
+import { describeCommute } from "../../lib/traffic";
+import type { Note } from "../../lib/types";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -28,24 +38,58 @@ function greeting(): string {
   return "Good evening";
 }
 
-const TILES = [
-  { label: "Meetings", value: "3", sample: true },
-  { label: "Urgent email", value: "2", sample: true },
-  { label: "Weather", value: "24°", sample: true },
-  { label: "Traffic", value: "Light", sample: true },
+// Weather (Open-Meteo) and Traffic (Mapbox, via our backend) are live;
+// meetings and email are still labeled sample until wired.
+const SAMPLE_TILES = [
+  { label: "Meetings", value: "3" },
+  { label: "Urgent email", value: "2" },
 ];
 
 export default function HomeScreen() {
   const { user } = useUser();
   const { brief } = useBrief();
   const { tasks } = useTasks("today");
+  const { weather, loading: weatherLoading, error: weatherError } = useWeather();
+  const { commute, loading: commuteLoading } = useCommute();
+  const commuteTile = describeCommute(commute, commuteLoading);
+  const captureRef = useRef<BottomSheetModal>(null);
+  const aiMenuRef = useRef<BottomSheetModal>(null);
+  const noteRef = useRef<BottomSheetModal>(null);
+
+  const { notes, saving: savingNote, save: saveNote, remove: removeNote } = useNotes();
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+
+  const openNote = (note: Note | null) => {
+    setEditingNote(note);
+    noteRef.current?.present();
+  };
+
+  const onSaveNote = async (input: { id?: string; title: string; body: string }) => {
+    if (await saveNote(input)) noteRef.current?.dismiss();
+  };
+
+  const onDeleteNote = async (id: string) => {
+    await removeNote(id);
+    noteRef.current?.dismiss();
+  };
+
+  const onAiAction = (id: AiActionId) => {
+    aiMenuRef.current?.dismiss();
+    const route = routeForAction(id);
+    if (route) router.push(route);
+    else captureRef.current?.present();
+  };
+
   const name = user?.firstName ?? "";
 
   return (
     <GradientBackdrop>
       <SafeAreaView edges={["top"]} className="flex-1">
         <ScrollView
-          contentContainerClassName="px-5 pb-28 pt-2"
+          // pb clears the floating orb (bottom-24 + a 48pt halo box = 144pt),
+          // so the last row can always scroll out from under it. pb-28 left the
+          // "See all" link sitting behind the orb at rest.
+          contentContainerClassName="px-5 pb-44 pt-2"
           showsVerticalScrollIndicator={false}
         >
           <FadeInUp>
@@ -95,11 +139,44 @@ export default function HomeScreen() {
           {/* Context tiles */}
           <FadeInUp delay={140} className="mt-4">
             <View className="flex-row flex-wrap gap-3">
-              {TILES.map((t) => (
+              <GlassCard className="min-w-[46%] flex-1">
+                <Text className="text-caption text-text-dim">Weather</Text>
+                {weather ? (
+                  <>
+                    <Text className="mt-1 text-title text-text">
+                      {weather.icon} {weather.temperature}°
+                    </Text>
+                    <Text className="mt-0.5 text-caption text-text-dim" numberOfLines={1}>
+                      {weather.description} · {weather.city}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="mt-1 text-title text-text-dim">
+                      {weatherLoading ? "…" : "—"}
+                    </Text>
+                    <Text className="mt-0.5 text-caption text-text-dim" numberOfLines={1}>
+                      {weatherLoading ? "Loading" : (weatherError ?? "Unavailable")}
+                    </Text>
+                  </>
+                )}
+              </GlassCard>
+              <GlassCard className="min-w-[46%] flex-1">
+                <Text className="text-caption text-text-dim">Traffic</Text>
+                <Text
+                  className={`mt-1 text-title ${commuteTile.live ? "text-text" : "text-text-dim"}`}
+                >
+                  {commuteTile.value}
+                </Text>
+                <Text className="mt-0.5 text-caption text-text-dim" numberOfLines={1}>
+                  {commuteTile.detail}
+                </Text>
+              </GlassCard>
+              {SAMPLE_TILES.map((t) => (
                 <GlassCard key={t.label} className="min-w-[46%] flex-1">
                   <Text className="text-caption text-text-dim">{t.label}</Text>
                   <Text className="mt-1 text-title text-text">{t.value}</Text>
-                  {t.sample && <Text className="mt-0.5 text-caption text-text-dim">sample</Text>}
+                  <Text className="mt-0.5 text-caption text-text-dim">sample</Text>
                 </GlassCard>
               ))}
             </View>
@@ -109,10 +186,8 @@ export default function HomeScreen() {
           <FadeInUp delay={200} className="mt-5">
             <Text className="mb-2 text-body font-semibold text-text">Quick actions</Text>
             <View className="flex-row flex-wrap gap-2">
-              <Chip label="＋ Add Task" />
-              <Chip label="📝 New Note" />
-              <Chip label="🎙 Voice" />
-              <Chip label="📷 Scan" />
+              <Chip label="＋ Add Task" onPress={() => captureRef.current?.present()} />
+              <Chip label="📝 New Note" onPress={() => openNote(null)} />
               <Chip label="⚡ Automate" />
             </View>
           </FadeInUp>
@@ -129,6 +204,45 @@ export default function HomeScreen() {
                   : "Add a couple of tasks and I'll help you plan the day."}
               </Text>
             </GlassCard>
+          </FadeInUp>
+
+          {/* Notes */}
+          <FadeInUp delay={290} className="mt-5">
+            <View className="mb-2 flex-row items-center justify-between">
+              <Text className="text-body font-semibold text-text">Notes</Text>
+              <Text onPress={() => openNote(null)} className="text-caption text-primary">
+                New
+              </Text>
+            </View>
+            {notes.length === 0 ? (
+              <GlassCard>
+                <Text className="text-body text-text-dim">
+                  No notes yet. Tap “📝 New Note” to write one.
+                </Text>
+              </GlassCard>
+            ) : (
+              <View className="gap-2">
+                {notes.slice(0, 3).map((n) => (
+                  <Fade key={n.id}>
+                    <GlassCard>
+                      <Text
+                        onPress={() => openNote(n)}
+                        className="text-body text-text"
+                        numberOfLines={1}
+                      >
+                        {n.pinned ? "📌 " : ""}
+                        {n.display_title}
+                      </Text>
+                      {n.body.trim().length > 0 && (
+                        <Text className="mt-0.5 text-caption text-text-dim" numberOfLines={1}>
+                          {n.body.trim()}
+                        </Text>
+                      )}
+                    </GlassCard>
+                  </Fade>
+                ))}
+              </View>
+            )}
           </FadeInUp>
 
           {/* Today's tasks preview */}
@@ -163,10 +277,22 @@ export default function HomeScreen() {
           </FadeInUp>
         </ScrollView>
 
-        {/* Floating AI orb */}
+        {/* Floating AI orb — opens the AI action menu */}
         <View className="absolute bottom-24 right-4">
-          <AiOrb size={30} />
+          <AiOrb size={30} onPress={() => aiMenuRef.current?.present()} />
         </View>
+
+        <AiActionMenu ref={aiMenuRef} onSelect={onAiAction} />
+
+        {/* Natural-language capture (Issue 10.1), opened by the ＋ Add Task chip */}
+        <CaptureSheet ref={captureRef} />
+        <NoteSheet
+          ref={noteRef}
+          note={editingNote}
+          saving={savingNote}
+          onSave={onSaveNote}
+          onDelete={onDeleteNote}
+        />
       </SafeAreaView>
     </GradientBackdrop>
   );

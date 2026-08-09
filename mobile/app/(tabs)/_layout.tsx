@@ -1,6 +1,7 @@
 /**
- * App shell — 5-tab bottom navigation (PRD §4: Home · Tasks · AI Chat · Insights ·
- * Profile) behind the biometric gate. The tab bar is a translucent glass surface
+ * App shell — 5-tab bottom navigation (Home · Tasks · Planner · Insights ·
+ * Profile) behind the biometric gate. The AI Chat tab was removed; its
+ * natural-language capture (Issue 10.1) now opens from the home screen. The tab bar is a translucent glass surface
  * floating over each screen's ambient gradient.
  */
 import { useAuth } from "@clerk/clerk-expo";
@@ -65,13 +66,6 @@ export default function TabsLayout() {
           options={{
             title: "Planner",
             tabBarIcon: ({ color }) => <TabIcon glyph="◷" color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="chat"
-          options={{
-            title: "AI Chat",
-            tabBarIcon: ({ color }) => <TabIcon glyph="✦" color={color} />,
           }}
         />
         <Tabs.Screen

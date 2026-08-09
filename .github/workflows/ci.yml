@@ -28,7 +28,15 @@ jobs:
       - name: Run trufflehog (verified secrets only)
         uses: trufflesecurity/trufflehog@v3.96.0
         with:
-          extra_args: --only-verified
+          # Lob is excluded, and only Lob. Its detector matches long base64-ish
+          # strings and "verifies" them, which flagged 7 findings in our test
+          # files — a test *method name* in notifications/tests.py and PKCE
+          # base64 fixtures in gcal/tests.py. This project has no Lob dependency
+          # (it is a direct-mail API), so the detector can only ever produce
+          # false positives here. Every other detector stays on: with this one
+          # excluded the full-history scan reports 0 verified secrets, so
+          # nothing real is being masked.
+          extra_args: --only-verified --exclude-detectors=lob
 
   backend:
     name: backend (checks + tests)

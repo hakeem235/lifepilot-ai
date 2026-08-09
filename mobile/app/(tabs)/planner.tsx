@@ -11,8 +11,9 @@
  * chip is drawn as a single absolute "ghost" overlay at the screen root so it is
  * never clipped while crossing between the tray and timeline scroll containers.
  */
-import type BottomSheet from "@gorhom/bottom-sheet";
-import { useCallback, useRef, useState } from "react";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -40,6 +41,7 @@ import { PriorityMatrix } from "../../components/PriorityMatrix";
 import { TemplatesSheet } from "../../components/TemplatesSheet";
 import { UndoBanner } from "../../components/UndoBanner";
 import { Badge, GlassCard, GradientBackdrop } from "../../components/ui";
+import { parseAiAction } from "../../lib/aiActions";
 import { shiftISODate, todayISO } from "../../lib/date";
 import {
   useCalendar,
@@ -138,9 +140,9 @@ export default function PlannerScreen() {
   const { tasks: allTasks } = useTasks();
   const { day: calendar, connect } = useCalendar(dateISO);
   const { notifications, unread, markRead, markAllRead } = useNotifications();
-  const templatesRef = useRef<BottomSheet>(null);
-  const notificationsRef = useRef<BottomSheet>(null);
-  const planRef = useRef<BottomSheet>(null);
+  const templatesRef = useRef<BottomSheetModal>(null);
+  const notificationsRef = useRef<BottomSheetModal>(null);
+  const planRef = useRef<BottomSheetModal>(null);
 
   // "Plan my day" (Issue 10.0). The proposal is held here, unapplied, until the
   // user confirms in the sheet — no AI write reaches a task before that (D10).
@@ -148,7 +150,7 @@ export default function PlannerScreen() {
 
   const onPlanMyDay = useCallback(async () => {
     await propose();
-    planRef.current?.expand();
+    planRef.current?.present();
   }, [propose]);
 
   // Reversibility (Issue 10.3): every apply hands back the prior placements, so
@@ -158,7 +160,7 @@ export default function PlannerScreen() {
   const onConfirmPlan = useCallback(
     async (assignments: PlanAssignment[]) => {
       const result = await apply(assignments);
-      planRef.current?.close();
+      planRef.current?.dismiss();
       dismiss();
       if (result) {
         offer(
@@ -177,12 +179,12 @@ export default function PlannerScreen() {
   }, [undo, refresh]);
 
   const onRejectPlan = useCallback(() => {
-    planRef.current?.close();
+    planRef.current?.dismiss();
     dismiss();
   }, [dismiss]);
 
   // Evening review (Issue 10.2). Slipped tasks roll forward only once confirmed.
-  const reviewRef = useRef<BottomSheet>(null);
+  const reviewRef = useRef<BottomSheetModal>(null);
   const {
     review,
     loading: reviewLoading,
@@ -193,14 +195,27 @@ export default function PlannerScreen() {
   } = useDailyReview(dateISO);
 
   const onOpenReview = useCallback(() => {
-    reviewRef.current?.expand();
+    reviewRef.current?.present();
     void loadReview();
   }, [loadReview]);
+
+  // Deep link from the home screen's AI orb: ?action=plan|review opens that
+  // flow once on arrival. Guarded by a ref so re-renders (or a back-navigation
+  // that keeps the param) cannot fire an AI call a second time.
+  const { action } = useLocalSearchParams<{ action?: string }>();
+  const handledAction = useRef<string | null>(null);
+  useEffect(() => {
+    const requested = parseAiAction(action);
+    if (!requested || handledAction.current === requested) return;
+    handledAction.current = requested;
+    if (requested === "plan") void onPlanMyDay();
+    if (requested === "review") onOpenReview();
+  }, [action, onPlanMyDay, onOpenReview]);
 
   const onConfirmReview = useCallback(
     async (moves: PlanAssignment[]) => {
       const result = await confirmReview(moves);
-      reviewRef.current?.close();
+      reviewRef.current?.dismiss();
       if (result) {
         offer(
           `Moved ${result.applied.length} task${result.applied.length === 1 ? "" : "s"} to tomorrow.`,
@@ -330,7 +345,7 @@ export default function PlannerScreen() {
               <Text className="text-caption font-semibold text-primary">🌙</Text>
             </Pressable>
             <Pressable
-              onPress={() => notificationsRef.current?.expand()}
+              onPress={() => notificationsRef.current?.present()}
               accessibilityLabel="Notifications"
               className="relative rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
             >
@@ -354,7 +369,7 @@ export default function PlannerScreen() {
               )}
             </Pressable>
             <Pressable
-              onPress={() => templatesRef.current?.expand()}
+              onPress={() => templatesRef.current?.present()}
               className="flex-row items-center gap-1 rounded-chip bg-primary/10 px-3 py-2 active:opacity-80"
             >
               <Text className="text-caption font-semibold text-primary">＋ Routines</Text>

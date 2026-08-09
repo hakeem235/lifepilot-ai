@@ -5,7 +5,7 @@
  */
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect } from "react";
-import { AccessibilityInfo, View } from "react-native";
+import { AccessibilityInfo, Pressable, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -16,7 +16,15 @@ import Animated, {
 
 import { brand } from "../../theme/tokens";
 
-export function AiOrb({ size = 96 }: { size?: number }) {
+export function AiOrb({
+  size = 96,
+  onPress,
+  accessibilityLabel = "AI actions",
+}: {
+  size?: number;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+}) {
   const pulse = useSharedValue(0);
 
   useEffect(() => {
@@ -42,7 +50,7 @@ export function AiOrb({ size = 96 }: { size?: number }) {
     transform: [{ scale: 1 + pulse.value * 0.05 }],
   }));
 
-  return (
+  const orb = (
     <View style={{ width: size * 1.6, height: size * 1.6 }} className="items-center justify-center">
       <Animated.View
         style={[
@@ -70,5 +78,21 @@ export function AiOrb({ size = 96 }: { size?: number }) {
         />
       </Animated.View>
     </View>
+  );
+
+  // Decorative on Splash, interactive as the home FAB. Only announce it as a
+  // button when it actually does something.
+  if (!onPress) return orb;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      hitSlop={8}
+      className="active:opacity-80"
+    >
+      {orb}
+    </Pressable>
   );
 }
