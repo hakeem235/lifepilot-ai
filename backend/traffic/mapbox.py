@@ -23,17 +23,26 @@ def is_configured() -> bool:
     return bool(settings.MAPBOX_ACCESS_TOKEN)
 
 
-def geocode(query: str) -> tuple[float, float] | None:
+def geocode(
+    query: str, proximity: tuple[float, float] | None = None
+) -> tuple[float, float] | None:
     """Resolve a free-text place to (longitude, latitude), or None if unresolvable.
 
     Returns None rather than raising: a calendar event whose location is
     "Zoom" or "TBD" is normal, not an error condition.
+
+    `proximity` biases results toward a point — pass the user's origin when
+    resolving a venue. Without it Mapbox ranks globally, and a real query like
+    "Kingdom Centre, Riyadh" can match a same-named place on another continent.
     """
     if not query.strip():
         return None
+    params = {"q": query, "limit": 1, "access_token": settings.MAPBOX_ACCESS_TOKEN}
+    if proximity:
+        params["proximity"] = f"{proximity[0]},{proximity[1]}"
     resp = httpx.get(
         GEOCODE_ENDPOINT,
-        params={"q": query, "limit": 1, "access_token": settings.MAPBOX_ACCESS_TOKEN},
+        params=params,
         timeout=TIMEOUT_SECONDS,
     )
     resp.raise_for_status()

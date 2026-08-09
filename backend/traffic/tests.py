@@ -145,6 +145,52 @@ class NextCommuteTests(TestCase):
             result = service.next_commute(self.user, "Home")
         self.assertEqual(result["reason"], "no_route")
 
+    def test_absurd_distance_is_reported_not_presented(self):
+        # Regression: live Mapbox geocoded "Kingdom Centre, Riyadh" to a
+        # same-named place on another continent, and the service returned a
+        # 5,983km / 4,339-minute "commute" labelled light traffic.
+        with (
+            patch("traffic.service.get_day_events", return_value=self._day([event()])),
+            patch("traffic.mapbox.geocode", side_effect=[(46.6, 24.7), (3.27, 34.65)]),
+            patch(
+                "traffic.mapbox.drive",
+                return_value={
+                    "duration": 260312.0,
+                    "duration_typical": 261661.0,
+                    "distance": 5983468.0,
+                },
+            ),
+        ):
+            result = service.next_commute(self.user, "Home")
+        self.assertEqual(result["reason"], "destination_too_far")
+
+    def test_a_long_but_plausible_commute_is_still_returned(self):
+        with (
+            patch("traffic.service.get_day_events", return_value=self._day([event()])),
+            patch("traffic.mapbox.geocode", side_effect=[(46.6, 24.7), (46.9, 24.9)]),
+            patch(
+                "traffic.mapbox.drive",
+                return_value={"duration": 5400.0, "duration_typical": 5000.0,
+                              "distance": 120000.0},
+            ),
+        ):
+            result = service.next_commute(self.user, "Home")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["distance_km"], 120.0)
+
+    def test_venue_lookup_is_biased_to_the_origin(self):
+        with (
+            patch("traffic.service.get_day_events", return_value=self._day([event()])),
+            patch("traffic.mapbox.geocode", side_effect=[(46.6, 24.7), (46.7, 24.8)]) as geo,
+            patch(
+                "traffic.mapbox.drive",
+                return_value={"duration": 600.0, "duration_typical": 600.0, "distance": 5000.0},
+            ),
+        ):
+            service.next_commute(self.user, "Home")
+        # Second call resolves the venue and must carry the origin as proximity.
+        self.assertEqual(geo.call_args_list[1].kwargs.get("proximity"), (46.6, 24.7))
+
     def test_missing_typical_duration_still_returns_an_estimate(self):
         with (
             patch("traffic.service.get_day_events", return_value=self._day([event()])),

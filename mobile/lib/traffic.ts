@@ -30,6 +30,9 @@ const REASONS: Record<CommuteReason, string> = {
   destination_not_found: "Venue not on the map",
   lookup_failed: "Traffic unavailable",
   no_route: "No driving route",
+  // A geocode mismatch, not a real trip — say we could not place it rather
+  // than showing a confident, wrong duration.
+  destination_too_far: "Venue not recognised",
 };
 
 const LEVEL_LABEL: Record<string, string> = {

@@ -24,6 +24,13 @@ from . import mapbox
 MODERATE_RATIO = 1.15
 HEAVY_RATIO = 1.4
 
+# Beyond this, the "commute" is a geocoding accident, not a drive to a meeting.
+# Live testing produced a 5,983km / 72-hour route because Mapbox matched a
+# same-named venue on another continent — and every downstream check passed it,
+# reporting "light traffic". A tile saying 4,339 min is obviously broken; the
+# danger is a subtler mismatch that merely looks wrong. Bound it explicitly.
+MAX_PLAUSIBLE_COMMUTE_KM = 300.0
+
 
 @dataclass(frozen=True)
 class Commute:
@@ -101,7 +108,9 @@ def next_commute(user, origin_address: str) -> dict:
 
     try:
         origin = mapbox.geocode(origin_address)
-        destination = mapbox.geocode(event["location"])
+        # Bias the venue lookup to the user's own location: event locations are
+        # short free text ("Kingdom Centre") and match globally without it.
+        destination = mapbox.geocode(event["location"], proximity=origin) if origin else None
     except Exception:
         return unavailable("lookup_failed")
     if origin is None:
@@ -115,6 +124,11 @@ def next_commute(user, origin_address: str) -> dict:
         return unavailable("lookup_failed")
     if route is None:
         return unavailable("no_route")
+
+    # A geocoding mismatch surfaces here as an absurd distance. Report it as
+    # unresolved rather than presenting a confident, wrong number.
+    if route["distance"] / 1000 > MAX_PLAUSIBLE_COMMUTE_KM:
+        return unavailable("destination_too_far")
 
     duration = route["duration"]
     start = parse_start(event.get("start"))

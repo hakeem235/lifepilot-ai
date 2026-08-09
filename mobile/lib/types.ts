@@ -64,7 +64,8 @@ export type CommuteReason =
   | "origin_not_found"
   | "destination_not_found"
   | "lookup_failed"
-  | "no_route";
+  | "no_route"
+  | "destination_too_far";
 
 export interface CalendarDay {
   connected: boolean;
