@@ -1,8 +1,9 @@
 /**
  * Home dashboard — personalized greeting, the gradient AI Daily Brief (real task
- * counts + AI/fallback summary), a tile row (live Open-Meteo weather; meetings/
- * email/traffic still labeled sample), quick actions, AI suggestions, and a live
- * preview of today's open tasks. Floating AI orb bottom-right.
+ * counts + AI/fallback summary), a tile row (live weather via Open-Meteo and a
+ * live commute estimate via Mapbox; meetings/email still sample), quick actions,
+ * AI suggestions, and a live preview of today's open tasks. Floating AI orb
+ * bottom-right.
  */
 import { useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,7 +20,8 @@ import {
   GlassCard,
   GradientBackdrop,
 } from "../../components/ui";
-import { useBrief, useTasks, useWeather } from "../../lib/hooks";
+import { useBrief, useCommute, useTasks, useWeather } from "../../lib/hooks";
+import { describeCommute } from "../../lib/traffic";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -28,11 +30,11 @@ function greeting(): string {
   return "Good evening";
 }
 
-// Weather is live (Open-Meteo); the rest are still labeled sample until wired.
+// Weather (Open-Meteo) and Traffic (Mapbox, via our backend) are live;
+// meetings and email are still labeled sample until wired.
 const SAMPLE_TILES = [
   { label: "Meetings", value: "3" },
   { label: "Urgent email", value: "2" },
-  { label: "Traffic", value: "Light" },
 ];
 
 export default function HomeScreen() {
@@ -40,6 +42,8 @@ export default function HomeScreen() {
   const { brief } = useBrief();
   const { tasks } = useTasks("today");
   const { weather, loading: weatherLoading, error: weatherError } = useWeather();
+  const { commute, loading: commuteLoading } = useCommute();
+  const commuteTile = describeCommute(commute, commuteLoading);
   const name = user?.firstName ?? "";
 
   return (
@@ -117,6 +121,17 @@ export default function HomeScreen() {
                     </Text>
                   </>
                 )}
+              </GlassCard>
+              <GlassCard className="min-w-[46%] flex-1">
+                <Text className="text-caption text-text-dim">Traffic</Text>
+                <Text
+                  className={`mt-1 text-title ${commuteTile.live ? "text-text" : "text-text-dim"}`}
+                >
+                  {commuteTile.value}
+                </Text>
+                <Text className="mt-0.5 text-caption text-text-dim" numberOfLines={1}>
+                  {commuteTile.detail}
+                </Text>
               </GlassCard>
               {SAMPLE_TILES.map((t) => (
                 <GlassCard key={t.label} className="min-w-[46%] flex-1">

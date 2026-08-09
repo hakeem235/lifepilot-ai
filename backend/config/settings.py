@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "gcal",
     "notifications",
     "planner",
+    "traffic",
 ]
 
 MIDDLEWARE = [
@@ -190,3 +191,7 @@ GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
 GOOGLE_OAUTH_REDIRECT_URI = os.environ.get(
     "GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/api/gcal/callback/"
 )
+# Mapbox (traffic-aware commute estimate on the home tile).
+# Server-side ONLY — a token in the Expo bundle ships to every device.
+# Unset by default: the API degrades to available:false with reason "not_configured".
+MAPBOX_ACCESS_TOKEN = os.environ.get("MAPBOX_ACCESS_TOKEN", "")

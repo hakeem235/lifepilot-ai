@@ -18,6 +18,7 @@ import type {
   CaptureDraft,
   CaptureProposal,
   ChatMessage,
+  Commute,
   DailyReview,
   Insights,
   PlanApplyResult,
@@ -339,6 +340,36 @@ export function useWeather() {
   }, [city]);
 
   return { weather, loading, error };
+}
+
+/**
+ * Drive estimate to the next located calendar event. Unlike weather this goes
+ * through the backend — the Mapbox token is server-side only, so the client
+ * never holds a credential.
+ */
+export function useCommute() {
+  const api = useApi();
+  const [commute, setCommute] = useState<Commute | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api("/api/traffic/next-commute/");
+        if (alive && res.ok) setCommute(await res.json());
+      } catch {
+        // Leave commute null; the tile renders "Unavailable" rather than a number.
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [api]);
+
+  return { commute, loading };
 }
 
 export function useChat() {
