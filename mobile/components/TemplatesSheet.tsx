@@ -3,7 +3,7 @@
  * Tapping Apply lays the routine's tasks onto the given day, then closes and
  * lets the Planner refresh so the new tasks appear on the timeline (Issue 9.1).
  */
-import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
@@ -12,7 +12,7 @@ import { brand } from "../theme/tokens";
 import { useTheme } from "../theme/ThemeProvider";
 
 export const TemplatesSheet = forwardRef<
-  BottomSheet,
+  BottomSheetModal,
   { dateISO: string; onApplied: () => void }
 >(function TemplatesSheet({ dateISO, onApplied }, ref) {
   const { colors } = useTheme();
@@ -31,15 +31,14 @@ export const TemplatesSheet = forwardRef<
     const ok = await apply(id, dateISO);
     setApplyingId(null);
     if (ok) {
-      (ref as React.RefObject<BottomSheet>)?.current?.close();
+      (ref as React.RefObject<BottomSheetModal>)?.current?.dismiss();
       onApplied();
     }
   };
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={ref}
-      index={-1}
       snapPoints={["55%"]}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
@@ -82,6 +81,6 @@ export const TemplatesSheet = forwardRef<
           ))
         )}
       </BottomSheetScrollView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 });

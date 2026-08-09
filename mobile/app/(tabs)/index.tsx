@@ -6,7 +6,7 @@
  * quick action opens natural-language capture (Issue 10.1). Floating AI orb
  * bottom-right.
  */
-import BottomSheet from "@gorhom/bottom-sheet";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -50,14 +50,14 @@ export default function HomeScreen() {
   const { weather, loading: weatherLoading, error: weatherError } = useWeather();
   const { commute, loading: commuteLoading } = useCommute();
   const commuteTile = describeCommute(commute, commuteLoading);
-  const captureRef = useRef<BottomSheet>(null);
-  const aiMenuRef = useRef<BottomSheet>(null);
+  const captureRef = useRef<BottomSheetModal>(null);
+  const aiMenuRef = useRef<BottomSheetModal>(null);
 
   const onAiAction = (id: AiActionId) => {
-    aiMenuRef.current?.close();
+    aiMenuRef.current?.dismiss();
     const route = routeForAction(id);
     if (route) router.push(route);
-    else captureRef.current?.expand();
+    else captureRef.current?.present();
   };
 
   const name = user?.firstName ?? "";
@@ -163,7 +163,7 @@ export default function HomeScreen() {
           <FadeInUp delay={200} className="mt-5">
             <Text className="mb-2 text-body font-semibold text-text">Quick actions</Text>
             <View className="flex-row flex-wrap gap-2">
-              <Chip label="＋ Add Task" onPress={() => captureRef.current?.expand()} />
+              <Chip label="＋ Add Task" onPress={() => captureRef.current?.present()} />
               <Chip label="📝 New Note" />
               <Chip label="🎙 Voice" />
               <Chip label="📷 Scan" />
@@ -219,7 +219,7 @@ export default function HomeScreen() {
 
         {/* Floating AI orb — opens the AI action menu */}
         <View className="absolute bottom-24 right-4">
-          <AiOrb size={30} onPress={() => aiMenuRef.current?.expand()} />
+          <AiOrb size={30} onPress={() => aiMenuRef.current?.present()} />
         </View>
 
         <AiActionMenu ref={aiMenuRef} onSelect={onAiAction} />

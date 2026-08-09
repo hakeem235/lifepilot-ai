@@ -8,7 +8,7 @@
  * Reuses the plan-preview logic so "skip this one" behaves identically to the
  * auto-scheduler's preview — one mental model for both AI surfaces.
  */
-import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
@@ -18,7 +18,7 @@ import { keptAssignments } from "../lib/planPreview";
 import type { DailyReview, PlanAssignment } from "../lib/types";
 
 export const DailyReviewSheet = forwardRef<
-  BottomSheet,
+  BottomSheetModal,
   {
     review: DailyReview | null;
     loading: boolean;
@@ -42,12 +42,11 @@ export const DailyReviewSheet = forwardRef<
   );
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={ref}
-      index={-1}
       snapPoints={["70%"]}
       enablePanDownToClose
-      onClose={() => {
+      onDismiss={() => {
         setDropped({});
         onClose();
       }}
@@ -163,6 +162,6 @@ export const DailyReviewSheet = forwardRef<
           </>
         )}
       </BottomSheetScrollView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 });

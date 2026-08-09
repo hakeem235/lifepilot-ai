@@ -2,7 +2,7 @@
  * AddTaskSheet — slide-up bottom sheet to create a task (title + priority).
  * Wired to the API via the onAdd callback (optimistic refresh handled upstream).
  */
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetView } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 
@@ -11,10 +11,10 @@ import type { Priority } from "../lib/types";
 
 const PRIORITIES: Priority[] = ["high", "medium", "low"];
 
-export type AddTaskSheetRef = BottomSheet;
+export type AddTaskSheetRef = BottomSheetModal;
 
 export const AddTaskSheet = forwardRef<
-  BottomSheet,
+  BottomSheetModal,
   { onAdd: (title: string, priority: Priority) => void }
 >(function AddTaskSheet({ onAdd }, ref) {
   const { colors } = useTheme();
@@ -34,13 +34,12 @@ export const AddTaskSheet = forwardRef<
     onAdd(t, priority);
     setTitle("");
     setPriority("medium");
-    (ref as React.RefObject<BottomSheet>)?.current?.close();
+    (ref as React.RefObject<BottomSheetModal>)?.current?.dismiss();
   };
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={ref}
-      index={-1}
       snapPoints={[320]}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
@@ -82,6 +81,6 @@ export const AddTaskSheet = forwardRef<
           <Text className="text-body font-semibold text-white">Add task</Text>
         </Pressable>
       </BottomSheetView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 });

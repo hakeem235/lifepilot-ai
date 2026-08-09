@@ -7,7 +7,7 @@
  * confirm before any Task is written (D10). This sheet owns the input; the
  * preview and undo affordances stay in their existing components.
  */
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetView } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 
@@ -23,9 +23,9 @@ const EXAMPLES = [
   "Buy groceries",
 ];
 
-export type CaptureSheetRef = BottomSheet;
+export type CaptureSheetRef = BottomSheetModal;
 
-export const CaptureSheet = forwardRef<BottomSheet, { onCaptured?: () => void }>(
+export const CaptureSheet = forwardRef<BottomSheetModal, { onCaptured?: () => void }>(
   function CaptureSheet({ onCaptured }, ref) {
     const { colors } = useTheme();
     const { proposal, parsing, saving, parse, confirm, discard } = useCapture();
@@ -57,9 +57,8 @@ export const CaptureSheet = forwardRef<BottomSheet, { onCaptured?: () => void }>
     };
 
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
         snapPoints={[380]}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
@@ -131,7 +130,7 @@ export const CaptureSheet = forwardRef<BottomSheet, { onCaptured?: () => void }>
             />
           )}
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   },
 );

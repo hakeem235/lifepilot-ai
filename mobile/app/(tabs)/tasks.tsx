@@ -3,7 +3,7 @@
  * badges, a per-task progress ring, check-to-complete that persists, and a slide-up
  * add sheet. Completion toggles refetch so the list stays consistent.
  */
-import type BottomSheet from "@gorhom/bottom-sheet";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,7 +19,7 @@ type Segment = (typeof SEGMENTS)[number];
 export default function TasksScreen() {
   const [segment, setSegment] = useState<Segment>("today");
   const { tasks, loading, addTask, toggleComplete } = useTasks(segment);
-  const sheetRef = useRef<BottomSheet>(null);
+  const sheetRef = useRef<BottomSheetModal>(null);
 
   return (
     <GradientBackdrop>
@@ -100,7 +100,7 @@ export default function TasksScreen() {
           )}
         </ScrollView>
 
-        <Fab label="＋" accessibilityLabel="Add task" onPress={() => sheetRef.current?.expand()} />
+        <Fab label="＋" accessibilityLabel="Add task" onPress={() => sheetRef.current?.present()} />
       </SafeAreaView>
 
       <AddTaskSheet ref={sheetRef} onAdd={(title, priority) => addTask({ title, priority })} />

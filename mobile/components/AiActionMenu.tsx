@@ -6,16 +6,16 @@
  * Actions that live on another screen navigate there and auto-open, so the orb
  * is a shortcut rather than a second implementation of each flow.
  */
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetView } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { AI_ACTIONS, type AiActionId } from "../lib/aiActions";
 import { useTheme } from "../theme/ThemeProvider";
 
-export type AiActionMenuRef = BottomSheet;
+export type AiActionMenuRef = BottomSheetModal;
 
-export const AiActionMenu = forwardRef<BottomSheet, { onSelect: (id: AiActionId) => void }>(
+export const AiActionMenu = forwardRef<BottomSheetModal, { onSelect: (id: AiActionId) => void }>(
   function AiActionMenu({ onSelect }, ref) {
     const { colors } = useTheme();
 
@@ -27,9 +27,8 @@ export const AiActionMenu = forwardRef<BottomSheet, { onSelect: (id: AiActionId)
     );
 
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
         snapPoints={[330]}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
@@ -62,7 +61,7 @@ export const AiActionMenu = forwardRef<BottomSheet, { onSelect: (id: AiActionId)
             </Pressable>
           ))}
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   },
 );
