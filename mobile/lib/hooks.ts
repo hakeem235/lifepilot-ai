@@ -10,6 +10,7 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 
 import { getPushToken, pushPlatform } from "./notifications";
+import { fetchWeather, resolveCity, type WeatherSnapshot } from "./weather";
 import type {
   AppNotification,
   Brief,
@@ -302,6 +303,42 @@ export function useBrief() {
   }, [api]);
 
   return { brief, loading };
+}
+
+/**
+ * Live weather for the home tile, from Open-Meteo (keyless, public — so it does
+ * not go through useApi/the Clerk JWT; there is nothing to authenticate).
+ * Exposes `error` so the tile can say it is unavailable rather than showing a
+ * stale or invented number.
+ */
+export function useWeather() {
+  const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const city = resolveCity(
+    process.env.EXPO_PUBLIC_WEATHER_CITY,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const snapshot = await fetchWeather(city);
+        if (alive) setWeather(snapshot);
+      } catch (e) {
+        if (alive) setError(e instanceof Error ? e.message : "Weather unavailable");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [city]);
+
+  return { weather, loading, error };
 }
 
 export function useChat() {

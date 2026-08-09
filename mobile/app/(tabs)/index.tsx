@@ -1,7 +1,7 @@
 /**
  * Home dashboard — personalized greeting, the gradient AI Daily Brief (real task
- * counts + AI/fallback summary), a tile row (meetings/email/weather/traffic —
- * labeled sample where not yet wired), quick actions, AI suggestions, and a live
+ * counts + AI/fallback summary), a tile row (live Open-Meteo weather; meetings/
+ * email/traffic still labeled sample), quick actions, AI suggestions, and a live
  * preview of today's open tasks. Floating AI orb bottom-right.
  */
 import { useUser } from "@clerk/clerk-expo";
@@ -19,7 +19,7 @@ import {
   GlassCard,
   GradientBackdrop,
 } from "../../components/ui";
-import { useBrief, useTasks } from "../../lib/hooks";
+import { useBrief, useTasks, useWeather } from "../../lib/hooks";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -28,17 +28,18 @@ function greeting(): string {
   return "Good evening";
 }
 
-const TILES = [
-  { label: "Meetings", value: "3", sample: true },
-  { label: "Urgent email", value: "2", sample: true },
-  { label: "Weather", value: "24°", sample: true },
-  { label: "Traffic", value: "Light", sample: true },
+// Weather is live (Open-Meteo); the rest are still labeled sample until wired.
+const SAMPLE_TILES = [
+  { label: "Meetings", value: "3" },
+  { label: "Urgent email", value: "2" },
+  { label: "Traffic", value: "Light" },
 ];
 
 export default function HomeScreen() {
   const { user } = useUser();
   const { brief } = useBrief();
   const { tasks } = useTasks("today");
+  const { weather, loading: weatherLoading, error: weatherError } = useWeather();
   const name = user?.firstName ?? "";
 
   return (
@@ -95,11 +96,33 @@ export default function HomeScreen() {
           {/* Context tiles */}
           <FadeInUp delay={140} className="mt-4">
             <View className="flex-row flex-wrap gap-3">
-              {TILES.map((t) => (
+              <GlassCard className="min-w-[46%] flex-1">
+                <Text className="text-caption text-text-dim">Weather</Text>
+                {weather ? (
+                  <>
+                    <Text className="mt-1 text-title text-text">
+                      {weather.icon} {weather.temperature}°
+                    </Text>
+                    <Text className="mt-0.5 text-caption text-text-dim" numberOfLines={1}>
+                      {weather.description} · {weather.city}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="mt-1 text-title text-text-dim">
+                      {weatherLoading ? "…" : "—"}
+                    </Text>
+                    <Text className="mt-0.5 text-caption text-text-dim" numberOfLines={1}>
+                      {weatherLoading ? "Loading" : (weatherError ?? "Unavailable")}
+                    </Text>
+                  </>
+                )}
+              </GlassCard>
+              {SAMPLE_TILES.map((t) => (
                 <GlassCard key={t.label} className="min-w-[46%] flex-1">
                   <Text className="text-caption text-text-dim">{t.label}</Text>
                   <Text className="mt-1 text-title text-text">{t.value}</Text>
-                  {t.sample && <Text className="mt-0.5 text-caption text-text-dim">sample</Text>}
+                  <Text className="mt-0.5 text-caption text-text-dim">sample</Text>
                 </GlassCard>
               ))}
             </View>
