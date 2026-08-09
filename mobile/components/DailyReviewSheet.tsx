@@ -16,6 +16,7 @@ import { Badge, ProgressBar } from "./ui";
 import { describeTime } from "../lib/capture";
 import { keptAssignments } from "../lib/planPreview";
 import type { DailyReview, PlanAssignment } from "../lib/types";
+import { useTheme } from "../theme/ThemeProvider";
 
 export const DailyReviewSheet = forwardRef<
   BottomSheetModal,
@@ -28,6 +29,8 @@ export const DailyReviewSheet = forwardRef<
   }
 >(function DailyReviewSheet({ review, loading, applying, onConfirm, onClose }, ref) {
   const [dropped, setDropped] = useState<Record<string, boolean>>({});
+
+  const { colors } = useTheme();
 
   const renderBackdrop = useCallback(
     (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
@@ -51,6 +54,8 @@ export const DailyReviewSheet = forwardRef<
         onClose();
       }}
       backdropComponent={renderBackdrop}
+      backgroundStyle={{ backgroundColor: colors.card }}
+      handleIndicatorStyle={{ backgroundColor: colors.textDim }}
     >
       <BottomSheetScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
         {loading || !review ? (

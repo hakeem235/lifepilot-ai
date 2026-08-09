@@ -7,7 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { tokenCache } from "../lib/tokenCache";
-import { ThemeProvider } from "../theme/ThemeProvider";
+import { ThemeProvider, useTheme } from "../theme/ThemeProvider";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -30,14 +30,33 @@ export default function RootLayout() {
           */}
           <BottomSheetModalProvider>
             <StatusBar style="auto" />
-            <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(tabs)" />
-            </Stack>
+            <ThemedStack />
           </BottomSheetModalProvider>
         </ThemeProvider>
       </ClerkProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * The navigator's own screen background. Without this it defaults to white, which
+ * shows through as a pale rectangle behind each screen's GradientBackdrop —
+ * most visibly in dark mode and during the `fade` transition between screens.
+ * Split into its own component so it can read the theme from ThemeProvider above.
+ */
+function ThemedStack() {
+  const { colors } = useTheme();
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "fade",
+        contentStyle: { backgroundColor: colors.bg },
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+    </Stack>
   );
 }
