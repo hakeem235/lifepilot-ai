@@ -168,8 +168,6 @@ export default function HomeScreen() {
             <View className="flex-row flex-wrap gap-2">
               <Chip label="＋ Add Task" onPress={() => captureRef.current?.present()} />
               <Chip label="📝 New Note" />
-              <Chip label="🎙 Voice" />
-              <Chip label="📷 Scan" />
               <Chip label="⚡ Automate" />
             </View>
           </FadeInUp>
