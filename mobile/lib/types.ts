@@ -190,3 +190,15 @@ export interface UndoResult {
   deleted: string[];
   rejected: { task_id: string | null; reason: string }[];
 }
+
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  /** Server-derived: the real title, else the body's first line. */
+  display_title: string;
+  pinned: boolean;
+  source: "manual" | "ai";
+  created_at: string;
+  updated_at: string;
+}

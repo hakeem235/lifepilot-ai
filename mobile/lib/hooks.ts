@@ -20,6 +20,7 @@ import type {
   Commute,
   DailyReview,
   Insights,
+  Note,
   PlanApplyResult,
   PlanAssignment,
   PlanProposal,
@@ -376,6 +377,70 @@ export function useCommute() {
  * `saved` drives the "Saved" confirmation — without it the user has no signal
  * that a free-text field with no submit button actually persisted.
  */
+/**
+ * Notes (user-scoped CRUD). `save` handles both create and update so the sheet
+ * does not need to know which it is doing; the caller passes an id or not.
+ */
+export function useNotes() {
+  const api = useApi();
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api("/api/notes/");
+      if (res.ok) setNotes(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const save = useCallback(
+    async (input: { id?: string; title: string; body: string }): Promise<boolean> => {
+      setSaving(true);
+      try {
+        const path = input.id ? `/api/notes/${input.id}/` : "/api/notes/";
+        const res = await api(path, {
+          method: input.id ? "PATCH" : "POST",
+          body: JSON.stringify({ title: input.title, body: input.body }),
+        });
+        if (!res.ok) return false;
+        await refresh();
+        return true;
+      } catch {
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [api, refresh],
+  );
+
+  const remove = useCallback(
+    async (id: string): Promise<boolean> => {
+      const res = await api(`/api/notes/${id}/`, { method: "DELETE" });
+      await refresh();
+      return res.ok;
+    },
+    [api, refresh],
+  );
+
+  const togglePin = useCallback(
+    async (id: string, pinned: boolean) => {
+      await api(`/api/notes/${id}/`, { method: "PATCH", body: JSON.stringify({ pinned }) });
+      await refresh();
+    },
+    [api, refresh],
+  );
+
+  return { notes, loading, saving, refresh, save, remove, togglePin };
+}
+
 export function useCommuteOrigin() {
   const api = useApi();
   const [origin, setOrigin] = useState("");

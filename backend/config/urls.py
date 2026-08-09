@@ -15,4 +15,5 @@ urlpatterns = [
     path("api/", include("notifications.urls")),
     path("api/", include("planner.urls")),
     path("api/", include("traffic.urls")),
+    path("api/", include("notes.urls")),
 ]

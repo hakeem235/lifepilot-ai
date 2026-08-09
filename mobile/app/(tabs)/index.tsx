@@ -10,12 +10,13 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AiActionMenu } from "../../components/AiActionMenu";
 import { CaptureSheet } from "../../components/CaptureSheet";
+import { NoteSheet } from "../../components/NoteSheet";
 import {
   AiOrb,
   Badge,
@@ -25,9 +26,10 @@ import {
   GlassCard,
   GradientBackdrop,
 } from "../../components/ui";
-import { useBrief, useCommute, useTasks, useWeather } from "../../lib/hooks";
+import { useBrief, useCommute, useNotes, useTasks, useWeather } from "../../lib/hooks";
 import { type AiActionId, routeForAction } from "../../lib/aiActions";
 import { describeCommute } from "../../lib/traffic";
+import type { Note } from "../../lib/types";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -52,6 +54,24 @@ export default function HomeScreen() {
   const commuteTile = describeCommute(commute, commuteLoading);
   const captureRef = useRef<BottomSheetModal>(null);
   const aiMenuRef = useRef<BottomSheetModal>(null);
+  const noteRef = useRef<BottomSheetModal>(null);
+
+  const { notes, saving: savingNote, save: saveNote, remove: removeNote } = useNotes();
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+
+  const openNote = (note: Note | null) => {
+    setEditingNote(note);
+    noteRef.current?.present();
+  };
+
+  const onSaveNote = async (input: { id?: string; title: string; body: string }) => {
+    if (await saveNote(input)) noteRef.current?.dismiss();
+  };
+
+  const onDeleteNote = async (id: string) => {
+    await removeNote(id);
+    noteRef.current?.dismiss();
+  };
 
   const onAiAction = (id: AiActionId) => {
     aiMenuRef.current?.dismiss();
@@ -167,7 +187,7 @@ export default function HomeScreen() {
             <Text className="mb-2 text-body font-semibold text-text">Quick actions</Text>
             <View className="flex-row flex-wrap gap-2">
               <Chip label="＋ Add Task" onPress={() => captureRef.current?.present()} />
-              <Chip label="📝 New Note" />
+              <Chip label="📝 New Note" onPress={() => openNote(null)} />
               <Chip label="⚡ Automate" />
             </View>
           </FadeInUp>
@@ -184,6 +204,45 @@ export default function HomeScreen() {
                   : "Add a couple of tasks and I'll help you plan the day."}
               </Text>
             </GlassCard>
+          </FadeInUp>
+
+          {/* Notes */}
+          <FadeInUp delay={290} className="mt-5">
+            <View className="mb-2 flex-row items-center justify-between">
+              <Text className="text-body font-semibold text-text">Notes</Text>
+              <Text onPress={() => openNote(null)} className="text-caption text-primary">
+                New
+              </Text>
+            </View>
+            {notes.length === 0 ? (
+              <GlassCard>
+                <Text className="text-body text-text-dim">
+                  No notes yet. Tap “📝 New Note” to write one.
+                </Text>
+              </GlassCard>
+            ) : (
+              <View className="gap-2">
+                {notes.slice(0, 3).map((n) => (
+                  <Fade key={n.id}>
+                    <GlassCard>
+                      <Text
+                        onPress={() => openNote(n)}
+                        className="text-body text-text"
+                        numberOfLines={1}
+                      >
+                        {n.pinned ? "📌 " : ""}
+                        {n.display_title}
+                      </Text>
+                      {n.body.trim().length > 0 && (
+                        <Text className="mt-0.5 text-caption text-text-dim" numberOfLines={1}>
+                          {n.body.trim()}
+                        </Text>
+                      )}
+                    </GlassCard>
+                  </Fade>
+                ))}
+              </View>
+            )}
           </FadeInUp>
 
           {/* Today's tasks preview */}
@@ -227,6 +286,13 @@ export default function HomeScreen() {
 
         {/* Natural-language capture (Issue 10.1), opened by the ＋ Add Task chip */}
         <CaptureSheet ref={captureRef} />
+        <NoteSheet
+          ref={noteRef}
+          note={editingNote}
+          saving={savingNote}
+          onSave={onSaveNote}
+          onDelete={onDeleteNote}
+        />
       </SafeAreaView>
     </GradientBackdrop>
   );

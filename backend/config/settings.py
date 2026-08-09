@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "notifications",
     "planner",
     "traffic",
+    "notes",
 ]
 
 MIDDLEWARE = [
